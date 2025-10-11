@@ -528,6 +528,96 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin: Get all schedules
+  app.get("/api/admin/schedules", isAuthenticated, requireRole(['admin']), async (req, res) => {
+    try {
+      const allSchedules = await db.select().from(schedules).orderBy(schedules.weekStart, schedules.dayOfWeek);
+      
+      const schedulesWithDetails = await Promise.all(
+        allSchedules.map(async (schedule) => {
+          const [course] = await db.select().from(courses).where(eq(courses.id, schedule.courseId));
+          const [student] = schedule.studentId 
+            ? await db.select().from(users).where(eq(users.id, schedule.studentId))
+            : [null];
+          const [trainer] = schedule.trainerId 
+            ? await db.select().from(users).where(eq(users.id, schedule.trainerId))
+            : [null];
+          
+          return {
+            ...schedule,
+            courseTitle: course?.title || '',
+            studentName: student ? `${student.firstName} ${student.lastName}` : 'TBA',
+            trainerName: trainer ? `${trainer.firstName} ${trainer.lastName}` : 'TBA',
+          };
+        })
+      );
+
+      res.json(schedulesWithDetails);
+    } catch (error) {
+      console.error("Error fetching schedules:", error);
+      res.status(500).json({ message: "Failed to fetch schedules" });
+    }
+  });
+
+  // Trainer: Get schedules
+  app.get("/api/trainer/schedules", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
+    try {
+      const trainerId = req.currentUser.id;
+      const trainerSchedules = await storage.getSchedulesByTrainer(trainerId);
+      
+      const schedulesWithDetails = await Promise.all(
+        trainerSchedules.map(async (schedule) => {
+          const [course] = await db.select().from(courses).where(eq(courses.id, schedule.courseId));
+          const [student] = schedule.studentId 
+            ? await db.select().from(users).where(eq(users.id, schedule.studentId))
+            : [null];
+          
+          return {
+            ...schedule,
+            courseTitle: course?.title || '',
+            studentName: student ? `${student.firstName} ${student.lastName}` : 'TBA',
+          };
+        })
+      );
+
+      res.json(schedulesWithDetails);
+    } catch (error) {
+      console.error("Error fetching trainer schedules:", error);
+      res.status(500).json({ message: "Failed to fetch schedules" });
+    }
+  });
+
+  // Sales: Get all schedules
+  app.get("/api/sales/schedules", isAuthenticated, requireRole(['sales_consultant']), async (req, res) => {
+    try {
+      const allSchedules = await db.select().from(schedules).orderBy(schedules.weekStart, schedules.dayOfWeek);
+      
+      const schedulesWithDetails = await Promise.all(
+        allSchedules.map(async (schedule) => {
+          const [course] = await db.select().from(courses).where(eq(courses.id, schedule.courseId));
+          const [student] = schedule.studentId 
+            ? await db.select().from(users).where(eq(users.id, schedule.studentId))
+            : [null];
+          const [trainer] = schedule.trainerId 
+            ? await db.select().from(users).where(eq(users.id, schedule.trainerId))
+            : [null];
+          
+          return {
+            ...schedule,
+            courseTitle: course?.title || '',
+            studentName: student ? `${student.firstName} ${student.lastName}` : 'TBA',
+            trainerName: trainer ? `${trainer.firstName} ${trainer.lastName}` : 'TBA',
+          };
+        })
+      );
+
+      res.json(schedulesWithDetails);
+    } catch (error) {
+      console.error("Error fetching schedules:", error);
+      res.status(500).json({ message: "Failed to fetch schedules" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
