@@ -1,0 +1,301 @@
+// From javascript_database and javascript_log_in_with_replit blueprints
+import {
+  users,
+  courses,
+  modules,
+  enrollments,
+  trainerAssignments,
+  moduleProgress,
+  tasks,
+  schedules,
+  queries,
+  relatedCourses,
+  type User,
+  type UpsertUser,
+  type Course,
+  type InsertCourse,
+  type Module,
+  type InsertModule,
+  type Enrollment,
+  type InsertEnrollment,
+  type TrainerAssignment,
+  type InsertTrainerAssignment,
+  type ModuleProgress,
+  type InsertModuleProgress,
+  type Task,
+  type InsertTask,
+  type Schedule,
+  type InsertSchedule,
+  type Query,
+  type InsertQuery,
+} from "@shared/schema";
+import { db } from "./db";
+import { eq, and, desc, sql } from "drizzle-orm";
+
+export interface IStorage {
+  // User operations
+  getUser(id: string): Promise<User | undefined>;
+  getUserByUsername(username: string): Promise<User | undefined>;
+  getAllUsers(): Promise<User[]>;
+  createUser(user: Omit<UpsertUser, 'id'>): Promise<User>;
+  
+  // Course operations
+  getAllCourses(): Promise<Course[]>;
+  getCourse(id: string): Promise<Course | undefined>;
+  createCourse(course: InsertCourse): Promise<Course>;
+  
+  // Module operations
+  getModulesByCourse(courseId: string): Promise<Module[]>;
+  createModule(module: InsertModule): Promise<Module>;
+  
+  // Enrollment operations
+  getEnrollmentsByStudent(studentId: string): Promise<Enrollment[]>;
+  createEnrollment(enrollment: InsertEnrollment): Promise<Enrollment>;
+  
+  // Trainer assignment operations
+  getTrainerAssignments(trainerId: string): Promise<TrainerAssignment[]>;
+  createTrainerAssignment(assignment: InsertTrainerAssignment): Promise<TrainerAssignment>;
+  
+  // Module progress operations
+  getStudentProgress(studentId: string): Promise<ModuleProgress[]>;
+  updateModuleProgress(progress: InsertModuleProgress): Promise<ModuleProgress>;
+  
+  // Task operations
+  getTasksByStudent(studentId: string): Promise<Task[]>;
+  getTasksByTrainer(trainerId: string): Promise<Task[]>;
+  createTask(task: InsertTask): Promise<Task>;
+  updateTask(id: string, updates: Partial<Task>): Promise<Task>;
+  
+  // Schedule operations
+  getSchedulesByStudent(studentId: string): Promise<Schedule[]>;
+  getSchedulesByTrainer(trainerId: string): Promise<Schedule[]>;
+  createSchedule(schedule: InsertSchedule): Promise<Schedule>;
+  
+  // Query operations
+  getQueriesByStudent(studentId: string): Promise<Query[]>;
+  createQuery(query: InsertQuery): Promise<Query>;
+  updateQuery(id: string, updates: Partial<Query>): Promise<Query>;
+}
+
+export class DatabaseStorage implements IStorage {
+  // User operations
+  async getUser(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return await db.select().from(users).orderBy(desc(users.createdAt));
+  }
+
+  async createUser(userData: Omit<UpsertUser, 'id'>): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values(userData)
+      .returning();
+    return user;
+  }
+
+  // Course operations
+  async getAllCourses(): Promise<Course[]> {
+    return await db.select().from(courses).orderBy(desc(courses.createdAt));
+  }
+
+  async getCourse(id: string): Promise<Course | undefined> {
+    const [course] = await db.select().from(courses).where(eq(courses.id, id));
+    return course;
+  }
+
+  async createCourse(courseData: InsertCourse): Promise<Course> {
+    const [course] = await db
+      .insert(courses)
+      .values(courseData)
+      .returning();
+    return course;
+  }
+
+  // Module operations
+  async getModulesByCourse(courseId: string): Promise<Module[]> {
+    return await db
+      .select()
+      .from(modules)
+      .where(eq(modules.courseId, courseId))
+      .orderBy(modules.order);
+  }
+
+  async createModule(moduleData: InsertModule): Promise<Module> {
+    const [module] = await db
+      .insert(modules)
+      .values(moduleData)
+      .returning();
+    return module;
+  }
+
+  // Enrollment operations
+  async getEnrollmentsByStudent(studentId: string): Promise<Enrollment[]> {
+    return await db
+      .select()
+      .from(enrollments)
+      .where(eq(enrollments.studentId, studentId))
+      .orderBy(desc(enrollments.enrolledAt));
+  }
+
+  async createEnrollment(enrollmentData: InsertEnrollment): Promise<Enrollment> {
+    const [enrollment] = await db
+      .insert(enrollments)
+      .values(enrollmentData)
+      .returning();
+    return enrollment;
+  }
+
+  // Trainer assignment operations
+  async getTrainerAssignments(trainerId: string): Promise<TrainerAssignment[]> {
+    return await db
+      .select()
+      .from(trainerAssignments)
+      .where(eq(trainerAssignments.trainerId, trainerId))
+      .orderBy(desc(trainerAssignments.assignedAt));
+  }
+
+  async createTrainerAssignment(assignmentData: InsertTrainerAssignment): Promise<TrainerAssignment> {
+    const [assignment] = await db
+      .insert(trainerAssignments)
+      .values(assignmentData)
+      .returning();
+    return assignment;
+  }
+
+  // Module progress operations
+  async getStudentProgress(studentId: string): Promise<ModuleProgress[]> {
+    return await db
+      .select()
+      .from(moduleProgress)
+      .where(eq(moduleProgress.studentId, studentId));
+  }
+
+  async updateModuleProgress(progressData: InsertModuleProgress): Promise<ModuleProgress> {
+    const existing = await db
+      .select()
+      .from(moduleProgress)
+      .where(
+        and(
+          eq(moduleProgress.studentId, progressData.studentId),
+          eq(moduleProgress.moduleId, progressData.moduleId)
+        )
+      );
+
+    if (existing.length > 0) {
+      const [updated] = await db
+        .update(moduleProgress)
+        .set({
+          isCompleted: progressData.isCompleted,
+          completedBy: progressData.completedBy,
+          completedAt: progressData.isCompleted ? new Date() : null,
+        })
+        .where(eq(moduleProgress.id, existing[0].id))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db
+        .insert(moduleProgress)
+        .values({
+          ...progressData,
+          completedAt: progressData.isCompleted ? new Date() : null,
+        })
+        .returning();
+      return created;
+    }
+  }
+
+  // Task operations
+  async getTasksByStudent(studentId: string): Promise<Task[]> {
+    return await db
+      .select()
+      .from(tasks)
+      .where(eq(tasks.studentId, studentId))
+      .orderBy(desc(tasks.createdAt));
+  }
+
+  async getTasksByTrainer(trainerId: string): Promise<Task[]> {
+    return await db
+      .select()
+      .from(tasks)
+      .where(eq(tasks.assignedBy, trainerId))
+      .orderBy(desc(tasks.createdAt));
+  }
+
+  async createTask(taskData: InsertTask): Promise<Task> {
+    const [task] = await db
+      .insert(tasks)
+      .values(taskData)
+      .returning();
+    return task;
+  }
+
+  async updateTask(id: string, updates: Partial<Task>): Promise<Task> {
+    const [task] = await db
+      .update(tasks)
+      .set(updates)
+      .where(eq(tasks.id, id))
+      .returning();
+    return task;
+  }
+
+  // Schedule operations
+  async getSchedulesByStudent(studentId: string): Promise<Schedule[]> {
+    return await db
+      .select()
+      .from(schedules)
+      .where(eq(schedules.studentId, studentId))
+      .orderBy(schedules.dayOfWeek);
+  }
+
+  async getSchedulesByTrainer(trainerId: string): Promise<Schedule[]> {
+    return await db
+      .select()
+      .from(schedules)
+      .where(eq(schedules.trainerId, trainerId))
+      .orderBy(schedules.dayOfWeek);
+  }
+
+  async createSchedule(scheduleData: InsertSchedule): Promise<Schedule> {
+    const [schedule] = await db
+      .insert(schedules)
+      .values(scheduleData)
+      .returning();
+    return schedule;
+  }
+
+  // Query operations
+  async getQueriesByStudent(studentId: string): Promise<Query[]> {
+    return await db
+      .select()
+      .from(queries)
+      .where(eq(queries.studentId, studentId))
+      .orderBy(desc(queries.createdAt));
+  }
+
+  async createQuery(queryData: InsertQuery): Promise<Query> {
+    const [query] = await db
+      .insert(queries)
+      .values(queryData)
+      .returning();
+    return query;
+  }
+
+  async updateQuery(id: string, updates: Partial<Query>): Promise<Query> {
+    const [query] = await db
+      .update(queries)
+      .set(updates)
+      .where(eq(queries.id, id))
+      .returning();
+    return query;
+  }
+}
+
+export const storage = new DatabaseStorage();
