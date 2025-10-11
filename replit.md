@@ -66,10 +66,16 @@ Preferred communication style: Simple, everyday language.
 
 **Demo User Credentials:**
 - Admin: username=`admin`, password=`admin123`
-- Trainer: username=`trainer`, password=`trainer123`
-- Student: username=`student`, password=`student123`
+- Trainer: username=`trainer1`, password=`trainer123`
+- Sales Consultant: username=`sales1`, password=`sales123`
+- Student: username=`student1`, password=`student123`
 
 Note: Users can change their passwords after first login using the password change endpoint.
+
+**Database Setup:**
+- PostgreSQL database provisioned via Replit
+- Database migrations applied using Drizzle ORM (`npm run db:push`)
+- Demo users seeded using `server/seed.ts` script
 
 **Data Access Layer:**
 - Storage abstraction layer (`storage.ts`) providing clean data access methods
