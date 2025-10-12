@@ -16,15 +16,22 @@ import AdminDashboard from "@/pages/admin/Dashboard";
 import AdminUsers from "@/pages/admin/Users";
 import AdminCourses from "@/pages/admin/Courses";
 import AdminSchedules from "@/pages/admin/Schedules";
+import AdminCourseModules from "@/pages/admin/CourseModules";
+import AdminAssignTrainers from "@/pages/admin/AssignTrainers";
 
 // Sales Pages
 import SalesDashboard from "@/pages/sales/Dashboard";
 import SalesSchedules from "@/pages/sales/Schedules";
+import SalesEnrollStudent from "@/pages/sales/EnrollStudent";
+import SalesStudents from "@/pages/sales/Students";
 
 // Trainer Pages
 import TrainerDashboard from "@/pages/trainer/Dashboard";
 import TrainerCourses from "@/pages/trainer/Courses";
 import TrainerSchedules from "@/pages/trainer/Schedules";
+import TrainerStudents from "@/pages/trainer/Students";
+import TrainerTasks from "@/pages/trainer/Tasks";
+import TrainerCourseStudents from "@/pages/trainer/CourseStudents";
 
 // Student Pages
 import StudentDashboard from "@/pages/student/Dashboard";
@@ -33,6 +40,7 @@ import StudentProgress from "@/pages/student/Progress";
 import StudentTasks from "@/pages/student/Tasks";
 import StudentQueries from "@/pages/student/Queries";
 import StudentSchedule from "@/pages/student/Schedule";
+import StudentCourseDetail from "@/pages/student/CourseDetail";
 
 // Role-based routing components
 function AdminRoutes() {
@@ -41,6 +49,8 @@ function AdminRoutes() {
       <Route path="/" component={AdminDashboard} />
       <Route path="/users" component={AdminUsers} />
       <Route path="/courses" component={AdminCourses} />
+      <Route path="/courses/:courseId/modules" component={AdminCourseModules} />
+      <Route path="/courses/:courseId/assign" component={AdminAssignTrainers} />
       <Route path="/schedules" component={AdminSchedules} />
       <Route component={NotFound} />
     </Switch>
@@ -51,6 +61,8 @@ function SalesRoutes() {
   return (
     <Switch>
       <Route path="/" component={SalesDashboard} />
+      <Route path="/enroll" component={SalesEnrollStudent} />
+      <Route path="/students" component={SalesStudents} />
       <Route path="/schedules" component={SalesSchedules} />
       <Route component={NotFound} />
     </Switch>
@@ -62,6 +74,9 @@ function TrainerRoutes() {
     <Switch>
       <Route path="/" component={TrainerDashboard} />
       <Route path="/courses" component={TrainerCourses} />
+      <Route path="/courses/:courseId/students" component={TrainerCourseStudents} />
+      <Route path="/students" component={TrainerStudents} />
+      <Route path="/tasks" component={TrainerTasks} />
       <Route path="/schedule" component={TrainerSchedules} />
       <Route component={NotFound} />
     </Switch>
@@ -73,6 +88,7 @@ function StudentRoutes() {
     <Switch>
       <Route path="/" component={StudentDashboard} />
       <Route path="/courses" component={StudentCourses} />
+      <Route path="/courses/:courseId" component={StudentCourseDetail} />
       <Route path="/progress" component={StudentProgress} />
       <Route path="/tasks" component={StudentTasks} />
       <Route path="/queries" component={StudentQueries} />

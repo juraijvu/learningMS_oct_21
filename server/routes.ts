@@ -618,6 +618,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin: Get course modules
+  app.get("/api/admin/courses/:courseId/modules", isAuthenticated, requireRole(['admin']), async (req, res) => {
+    try {
+      const { courseId } = req.params;
+      const courseModules = await storage.getModulesByCourse(courseId);
+      res.json(courseModules);
+    } catch (error) {
+      console.error("Error fetching course modules:", error);
+      res.status(500).json({ message: "Failed to fetch modules" });
+    }
+  });
+
+  // Admin: Create course module
+  app.post("/api/admin/courses/:courseId/modules", isAuthenticated, requireRole(['admin']), async (req, res) => {
+    try {
+      const { courseId } = req.params;
+      const moduleData = insertModuleSchema.parse({ ...req.body, courseId });
+      const module = await storage.createModule(moduleData);
+      res.json(module);
+    } catch (error) {
+      console.error("Error creating module:", error);
+      res.status(500).json({ message: "Failed to create module" });
+    }
+  });
+
+  // Trainer: Get tasks to review
+  app.get("/api/trainer/tasks", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
+    try {
+      const trainerId = req.currentUser.id;
+      const trainerTasks = await storage.getTasksByTrainer(trainerId);
+      res.json(trainerTasks);
+    } catch (error) {
+      console.error("Error fetching trainer tasks:", error);
+      res.status(500).json({ message: "Failed to fetch tasks" });
+    }
+  });
+
+  // Trainer: Get course students
+  app.get("/api/trainer/courses/:courseId/students", isAuthenticated, requireRole(['trainer']), async (req, res) => {
+    try {
+      const { courseId } = req.params;
+      const courseEnrollments = await db.select().from(enrollments).where(eq(enrollments.courseId, courseId));
+      
+      const studentsWithDetails = await Promise.all(
+        courseEnrollments.map(async (enrollment) => {
+          const [student] = await db.select().from(users).where(eq(users.id, enrollment.studentId));
+          return student;
+        })
+      );
+
+      res.json(studentsWithDetails.filter(s => s !== undefined));
+    } catch (error) {
+      console.error("Error fetching course students:", error);
+      res.status(500).json({ message: "Failed to fetch students" });
+    }
+  });
+
+  // Public: Get course by ID
+  app.get("/api/courses/:courseId", isAuthenticated, async (req, res) => {
+    try {
+      const { courseId } = req.params;
+      const course = await storage.getCourse(courseId);
+      if (!course) {
+        return res.status(404).json({ message: "Course not found" });
+      }
+      res.json(course);
+    } catch (error) {
+      console.error("Error fetching course:", error);
+      res.status(500).json({ message: "Failed to fetch course" });
+    }
+  });
+
+  // Public: Get course modules
+  app.get("/api/courses/:courseId/modules", isAuthenticated, async (req, res) => {
+    try {
+      const { courseId } = req.params;
+      const courseModules = await storage.getModulesByCourse(courseId);
+      res.json(courseModules);
+    } catch (error) {
+      console.error("Error fetching course modules:", error);
+      res.status(500).json({ message: "Failed to fetch modules" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
