@@ -73,7 +73,9 @@ export function AppSidebar() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+      // Clear user data immediately and redirect to login
+      queryClient.setQueryData(['/api/auth/user'], null);
+      queryClient.removeQueries({ queryKey: ['/api/auth/user'] });
     },
   });
   

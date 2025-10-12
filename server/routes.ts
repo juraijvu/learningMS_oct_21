@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated, hashPassword, verifyPassword } from "./auth";
-import { insertCourseSchema, insertModuleSchema, insertEnrollmentSchema, insertTaskSchema, insertScheduleSchema, insertQuerySchema, insertUserSchema } from "@shared/schema";
+import { insertCourseSchema, insertModuleSchema, insertEnrollmentSchema, insertTaskSchema, insertScheduleSchema, insertQuerySchema, insertUserSchema, insertTrainerAssignmentSchema } from "@shared/schema";
 import { db } from "./db";
 import { courses, modules, enrollments, users, trainerAssignments, moduleProgress, tasks, schedules, queries } from "@shared/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
@@ -236,6 +236,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error creating course:", error);
       res.status(500).json({ message: "Failed to create course" });
+    }
+  });
+
+  // Admin: Assign trainer to course
+  app.post("/api/admin/trainer-assignments", isAuthenticated, requireRole(['admin']), async (req, res) => {
+    try {
+      const assignmentData = insertTrainerAssignmentSchema.parse(req.body);
+      
+      // Check if trainer is already assigned to this course
+      const existingAssignments = await storage.getTrainerAssignments(assignmentData.trainerId);
+      const alreadyAssigned = existingAssignments.some(a => a.courseId === assignmentData.courseId);
+      
+      if (alreadyAssigned) {
+        return res.status(400).json({ message: "Trainer is already assigned to this course" });
+      }
+
+      const assignment = await storage.createTrainerAssignment(assignmentData);
+      res.json(assignment);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid input", errors: error.errors });
+      }
+      console.error("Error assigning trainer:", error);
+      res.status(500).json({ message: "Failed to assign trainer" });
     }
   });
 
