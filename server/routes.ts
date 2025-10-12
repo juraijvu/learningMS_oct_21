@@ -240,9 +240,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin: Assign trainer to course
-  app.post("/api/admin/trainer-assignments", isAuthenticated, requireRole(['admin']), async (req, res) => {
+  app.post("/api/admin/trainer-assignments", isAuthenticated, requireRole(['admin']), async (req: any, res) => {
     try {
-      const assignmentData = insertTrainerAssignmentSchema.parse(req.body);
+      // Add assignedBy from the current admin user
+      const assignmentData = insertTrainerAssignmentSchema.parse({
+        ...req.body,
+        assignedBy: req.currentUser.id,
+      });
       
       // Check if trainer is already assigned to this course
       const existingAssignments = await storage.getTrainerAssignments(assignmentData.trainerId);

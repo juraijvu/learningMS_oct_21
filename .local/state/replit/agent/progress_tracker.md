@@ -13,4 +13,5 @@
 [x] 13. Fixed logout redirect issue - now redirects immediately to login page
 [x] 14. Created API endpoint for assigning trainers to courses
 [x] 15. Added trainer assignment UI with loading states and feedback
-[x] 16. All fixes tested and verified by architect review
+[x] 16. Fixed validation error - auto-populate assignedBy field from admin user
+[x] 17. All fixes tested and verified by architect review
