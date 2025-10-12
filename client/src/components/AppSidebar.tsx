@@ -8,7 +8,7 @@ import {
   GraduationCap,
   MessageSquare
 } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import {
   Sidebar,
   SidebarContent,
@@ -62,6 +62,7 @@ const menuItems = {
 export function AppSidebar() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
   
   const logoutMutation = useMutation({
     mutationFn: async () => {
@@ -76,6 +77,7 @@ export function AppSidebar() {
       // Clear user data immediately and redirect to login
       queryClient.setQueryData(['/api/auth/user'], null);
       queryClient.removeQueries({ queryKey: ['/api/auth/user'] });
+      setLocation('/');
     },
   });
   

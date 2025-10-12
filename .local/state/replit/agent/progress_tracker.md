@@ -30,3 +30,6 @@
 [x] 30. Created custom WebSocket with rejectUnauthorized: false for Replit environment
 [x] 31. Login fully working - tested successfully with curl and verified admin login
 [x] 32. All login issues completely resolved - system fully operational
+[x] 33. Fixed logout redirect bug - now properly redirects to login page (/) after signout
+[x] 34. Added setLocation('/') to logout mutation onSuccess handler
+[x] 35. Logout functionality fully working - no more 404 errors after signout
