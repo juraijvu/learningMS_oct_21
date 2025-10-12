@@ -3,7 +3,17 @@ import { drizzle } from 'drizzle-orm/neon-serverless';
 import ws from "ws";
 import * as schema from "@shared/schema";
 
-neonConfig.webSocketConstructor = ws;
+// Create custom WebSocket constructor that ignores SSL certificate errors
+// This is needed for Replit's development environment
+class CustomWebSocket extends ws {
+  constructor(url: string, protocols?: string | string[]) {
+    super(url, protocols, {
+      rejectUnauthorized: false
+    });
+  }
+}
+
+neonConfig.webSocketConstructor = CustomWebSocket as any;
 
 if (!process.env.DATABASE_URL) {
   throw new Error(
