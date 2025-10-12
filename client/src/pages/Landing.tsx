@@ -58,6 +58,9 @@ export default function Landing() {
     setIsLoading(true);
     try {
       await loginMutation.mutateAsync(data);
+    } catch (error) {
+      // Error is already handled by mutation's onError callback
+      // This catch prevents the error from bubbling up to the runtime error overlay
     } finally {
       setIsLoading(false);
     }
@@ -86,6 +89,16 @@ export default function Landing() {
                 <CardDescription>Enter your credentials to access the system</CardDescription>
               </CardHeader>
               <CardContent>
+                {/* Demo Credentials */}
+                <div className="mb-4 p-3 bg-muted rounded-lg text-sm">
+                  <p className="font-semibold mb-2">Demo Credentials:</p>
+                  <div className="space-y-1 text-muted-foreground">
+                    <p>Admin: <code className="bg-background px-1 rounded">admin / admin123</code></p>
+                    <p>Trainer: <code className="bg-background px-1 rounded">trainer1 / trainer123</code></p>
+                    <p>Sales: <code className="bg-background px-1 rounded">sales1 / sales123</code></p>
+                    <p>Student: <code className="bg-background px-1 rounded">student1 / student123</code></p>
+                  </div>
+                </div>
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="username">Username</Label>
