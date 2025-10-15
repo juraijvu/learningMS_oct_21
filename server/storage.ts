@@ -10,6 +10,7 @@ import {
   schedules,
   queries,
   relatedCourses,
+  classMaterials,
   type User,
   type UpsertUser,
   type Course,
@@ -28,6 +29,8 @@ import {
   type InsertSchedule,
   type Query,
   type InsertQuery,
+  type ClassMaterial,
+  type InsertClassMaterial,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql } from "drizzle-orm";
@@ -75,6 +78,13 @@ export interface IStorage {
   getQueriesByStudent(studentId: string): Promise<Query[]>;
   createQuery(query: InsertQuery): Promise<Query>;
   updateQuery(id: string, updates: Partial<Query>): Promise<Query>;
+  
+  // Class materials operations
+  getClassMaterialsByCourse(courseId: string): Promise<ClassMaterial[]>;
+  getClassMaterialById(id: string): Promise<ClassMaterial | undefined>;
+  createClassMaterial(material: InsertClassMaterial): Promise<ClassMaterial>;
+  deleteClassMaterial(id: string): Promise<void>;
+  deleteExpiredMaterials(): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -295,6 +305,46 @@ export class DatabaseStorage implements IStorage {
       .where(eq(queries.id, id))
       .returning();
     return query;
+  }
+
+  // Class materials operations
+  async getClassMaterialsByCourse(courseId: string): Promise<ClassMaterial[]> {
+    return await db
+      .select()
+      .from(classMaterials)
+      .where(eq(classMaterials.courseId, courseId))
+      .orderBy(desc(classMaterials.uploadedAt));
+  }
+
+  async getClassMaterialById(id: string): Promise<ClassMaterial | undefined> {
+    const [material] = await db
+      .select()
+      .from(classMaterials)
+      .where(eq(classMaterials.id, id));
+    return material;
+  }
+
+  async createClassMaterial(materialData: InsertClassMaterial): Promise<ClassMaterial> {
+    const [material] = await db
+      .insert(classMaterials)
+      .values(materialData)
+      .returning();
+    return material;
+  }
+
+  async deleteClassMaterial(id: string): Promise<void> {
+    await db
+      .delete(classMaterials)
+      .where(eq(classMaterials.id, id));
+  }
+
+  async deleteExpiredMaterials(): Promise<number> {
+    const now = new Date();
+    const result = await db
+      .delete(classMaterials)
+      .where(sql`${classMaterials.expiresAt} < ${now}`)
+      .returning();
+    return result.length;
   }
 }
 

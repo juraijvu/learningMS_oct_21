@@ -2,11 +2,14 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated, hashPassword, verifyPassword } from "./auth";
-import { insertCourseSchema, insertModuleSchema, insertEnrollmentSchema, insertTaskSchema, insertScheduleSchema, insertQuerySchema, insertUserSchema, insertTrainerAssignmentSchema } from "@shared/schema";
+import { insertCourseSchema, insertModuleSchema, insertEnrollmentSchema, insertTaskSchema, insertScheduleSchema, insertQuerySchema, insertUserSchema, insertTrainerAssignmentSchema, insertClassMaterialSchema, classMaterials } from "@shared/schema";
 import { db } from "./db";
 import { courses, modules, enrollments, users, trainerAssignments, moduleProgress, tasks, schedules, queries } from "@shared/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { z } from "zod";
+import multer from "multer";
+import path from "path";
+import fs from "fs/promises";
 
 // Role-based middleware
 const requireRole = (roles: string[]) => {
@@ -727,6 +730,173 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching course modules:", error);
       res.status(500).json({ message: "Failed to fetch modules" });
+    }
+  });
+
+  // Class Materials Routes
+  
+  // Configure multer for file uploads
+  const upload = multer({
+    dest: 'uploads/',
+    limits: { fileSize: 100 * 1024 * 1024 }, // 100MB limit
+    fileFilter: (req, file, cb) => {
+      // Accept videos and documents
+      const allowedTypes = [
+        'video/mp4', 'video/mpeg', 'video/quicktime', 'video/x-msvideo', 'video/webm',
+        'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'text/plain'
+      ];
+      
+      if (allowedTypes.includes(file.mimetype)) {
+        cb(null, true);
+      } else {
+        cb(new Error('Invalid file type. Only videos and documents are allowed.'));
+      }
+    }
+  });
+
+  // Trainer: Upload class material
+  app.post("/api/class-materials", isAuthenticated, requireRole(['trainer']), upload.single('file'), async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      const uploadSchema = z.object({
+        courseId: z.string(),
+        type: z.enum(['video', 'note']),
+        title: z.string().min(1),
+        description: z.string().optional(),
+      });
+
+      const data = uploadSchema.parse(req.body);
+      const trainerId = req.currentUser.id;
+
+      // Calculate expiration date (10 days from now)
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 10);
+
+      // Create material record
+      const material = await storage.createClassMaterial({
+        courseId: data.courseId,
+        trainerId,
+        type: data.type,
+        title: data.title,
+        description: data.description || null,
+        fileUrl: `/uploads/${req.file.filename}`,
+        fileName: req.file.originalname,
+        fileSize: req.file.size,
+        expiresAt,
+      });
+
+      res.json(material);
+    } catch (error) {
+      // Clean up uploaded file if there's an error
+      if (req.file) {
+        await fs.unlink(req.file.path).catch(() => {});
+      }
+      
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid input", errors: error.errors });
+      }
+      console.error("Error uploading class material:", error);
+      res.status(500).json({ message: "Failed to upload class material" });
+    }
+  });
+
+  // Get class materials for a course
+  app.get("/api/class-materials/:courseId", isAuthenticated, async (req, res) => {
+    try {
+      const { courseId } = req.params;
+      const materials = await storage.getClassMaterialsByCourse(courseId);
+      res.json(materials);
+    } catch (error) {
+      console.error("Error fetching class materials:", error);
+      res.status(500).json({ message: "Failed to fetch class materials" });
+    }
+  });
+
+  // Download class material
+  app.get("/api/class-materials/download/:id", isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const material = await storage.getClassMaterialById(id);
+      
+      if (!material) {
+        return res.status(404).json({ message: "Material not found" });
+      }
+
+      const filePath = path.join(process.cwd(), material.fileUrl);
+      
+      // Check if file exists
+      try {
+        await fs.access(filePath);
+      } catch {
+        return res.status(404).json({ message: "File not found on server" });
+      }
+
+      res.download(filePath, material.fileName);
+    } catch (error) {
+      console.error("Error downloading class material:", error);
+      res.status(500).json({ message: "Failed to download material" });
+    }
+  });
+
+  // Trainer: Delete class material
+  app.delete("/api/class-materials/:id", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const material = await storage.getClassMaterialById(id);
+      
+      if (!material) {
+        return res.status(404).json({ message: "Material not found" });
+      }
+
+      // Check if the trainer is the owner
+      if (material.trainerId !== req.currentUser.id) {
+        return res.status(403).json({ message: "Forbidden - You can only delete your own materials" });
+      }
+
+      // Delete file from filesystem
+      const filePath = path.join(process.cwd(), material.fileUrl);
+      await fs.unlink(filePath).catch(() => {});
+
+      // Delete from database
+      await storage.deleteClassMaterial(id);
+
+      res.json({ message: "Material deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting class material:", error);
+      res.status(500).json({ message: "Failed to delete material" });
+    }
+  });
+
+  // Cleanup expired materials (can be called by a cron job or manually)
+  app.post("/api/class-materials/cleanup", isAuthenticated, requireRole(['admin']), async (req, res) => {
+    try {
+      // Get expired materials before deleting
+      const expiredMaterials = await db
+        .select()
+        .from(classMaterials)
+        .where(sql`${classMaterials.expiresAt} < ${new Date()}`);
+
+      // Delete files from filesystem
+      for (const material of expiredMaterials) {
+        const filePath = path.join(process.cwd(), material.fileUrl);
+        await fs.unlink(filePath).catch(() => {});
+      }
+
+      // Delete from database
+      const deletedCount = await storage.deleteExpiredMaterials();
+
+      res.json({ 
+        message: `Cleaned up ${deletedCount} expired materials`,
+        count: deletedCount 
+      });
+    } catch (error) {
+      console.error("Error cleaning up expired materials:", error);
+      res.status(500).json({ message: "Failed to cleanup materials" });
     }
   });
 

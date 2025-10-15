@@ -2,7 +2,7 @@ import { useParams } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, BookOpen, FileText, CheckCircle } from "lucide-react";
+import { ArrowLeft, BookOpen, FileText, CheckCircle, Download, Video, FileIcon } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 
@@ -20,6 +20,17 @@ interface Course {
   pdfUrl?: string;
 }
 
+interface ClassMaterial {
+  id: string;
+  type: 'video' | 'note';
+  title: string;
+  description?: string;
+  fileName: string;
+  fileSize: number;
+  uploadedAt: string;
+  expiresAt: string;
+}
+
 export default function StudentCourseDetail() {
   const { courseId } = useParams<{ courseId: string }>();
 
@@ -30,6 +41,21 @@ export default function StudentCourseDetail() {
   const { data: modules, isLoading: loadingModules } = useQuery<Module[]>({
     queryKey: [`/api/courses/${courseId}/modules`],
   });
+
+  const { data: materials, isLoading: loadingMaterials } = useQuery<ClassMaterial[]>({
+    queryKey: [`/api/class-materials/${courseId}`],
+  });
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  };
+
+  const daysUntilExpiry = (expiresAt: string) => {
+    const days = Math.ceil((new Date(expiresAt).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+    return days > 0 ? days : 0;
+  };
 
   if (loadingCourse || loadingModules) {
     return (
@@ -66,6 +92,64 @@ export default function StudentCourseDetail() {
               <FileText className="h-5 w-5 mr-2" />
               Download Course Materials (PDF)
             </a>
+          </CardContent>
+        </Card>
+      )}
+
+      {materials && materials.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Shared Class Materials
+            </CardTitle>
+            <CardDescription>
+              Videos and notes shared by your trainer. Materials automatically expire after 10 days.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loadingMaterials ? (
+              <Skeleton className="h-20 w-full" />
+            ) : (
+              <div className="space-y-2">
+                {materials?.map((material) => {
+                  const daysLeft = daysUntilExpiry(material.expiresAt);
+                  return (
+                    <div
+                      key={material.id}
+                      className="flex items-center gap-3 p-3 rounded border hover:bg-muted/50 transition-colors"
+                      data-testid={`material-${material.id}`}
+                    >
+                      <div className="flex-shrink-0">
+                        {material.type === 'video' ? (
+                          <Video className="h-5 w-5 text-primary" />
+                        ) : (
+                          <FileIcon className="h-5 w-5 text-primary" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium">{material.title}</p>
+                        {material.description && (
+                          <p className="text-xs text-muted-foreground mt-0.5">{material.description}</p>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {formatFileSize(material.fileSize)} • 
+                          <span className={daysLeft <= 2 ? "text-destructive font-medium" : ""}>
+                            {' '}Expires in {daysLeft} {daysLeft === 1 ? 'day' : 'days'}
+                          </span>
+                        </p>
+                      </div>
+                      <Button size="sm" variant="outline" asChild data-testid={`button-download-${material.id}`}>
+                        <a href={`/api/class-materials/download/${material.id}`} download>
+                          <Download className="h-4 w-4 mr-1" />
+                          Download
+                        </a>
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

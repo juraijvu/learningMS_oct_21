@@ -134,6 +134,21 @@ export const relatedCourses = pgTable("related_courses", {
   relatedCourseId: varchar("related_course_id").notNull().references(() => courses.id, { onDelete: 'cascade' }),
 });
 
+// Class materials (notes and videos) shared by trainers
+export const classMaterials = pgTable("class_materials", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  courseId: varchar("course_id").notNull().references(() => courses.id, { onDelete: 'cascade' }),
+  trainerId: varchar("trainer_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  type: varchar("type", { enum: ['video', 'note'] }).notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  fileUrl: varchar("file_url", { length: 500 }).notNull(),
+  fileName: varchar("file_name", { length: 255 }).notNull(),
+  fileSize: integer("file_size").notNull(),
+  uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   enrollments: many(enrollments),
@@ -215,6 +230,17 @@ export const queriesRelations = relations(queries, ({ one }) => ({
   }),
 }));
 
+export const classMaterialsRelations = relations(classMaterials, ({ one }) => ({
+  course: one(courses, {
+    fields: [classMaterials.courseId],
+    references: [courses.id],
+  }),
+  trainer: one(users, {
+    fields: [classMaterials.trainerId],
+    references: [users.id],
+  }),
+}));
+
 // Type exports
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
@@ -245,6 +271,9 @@ export type Query = typeof queries.$inferSelect;
 
 export type InsertRelatedCourse = typeof relatedCourses.$inferInsert;
 export type RelatedCourse = typeof relatedCourses.$inferSelect;
+
+export type InsertClassMaterial = typeof classMaterials.$inferInsert;
+export type ClassMaterial = typeof classMaterials.$inferSelect;
 
 // Insert schemas for validation
 export const insertUserSchema = createInsertSchema(users).omit({
@@ -294,4 +323,9 @@ export const insertQuerySchema = createInsertSchema(queries).omit({
   id: true,
   createdAt: true,
   resolvedAt: true,
+});
+
+export const insertClassMaterialSchema = createInsertSchema(classMaterials).omit({
+  id: true,
+  uploadedAt: true,
 });
