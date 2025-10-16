@@ -6,7 +6,8 @@ import {
   ClipboardList,
   UserPlus,
   GraduationCap,
-  MessageSquare
+  MessageSquare,
+  FileText
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
@@ -47,6 +48,7 @@ const menuItems = {
     { title: "My Courses", url: "/courses", icon: BookOpen, testId: "link-trainer-courses" },
     { title: "Students", url: "/students", icon: Users, testId: "link-trainer-students" },
     { title: "Tasks", url: "/tasks", icon: ClipboardList, testId: "link-trainer-tasks" },
+    { title: "Class Materials", url: "/materials", icon: FileText, testId: "link-trainer-materials" },
     { title: "Schedule", url: "/schedule", icon: Calendar, testId: "link-trainer-schedule" },
   ],
   student: [

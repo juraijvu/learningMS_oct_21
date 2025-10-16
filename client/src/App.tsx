@@ -32,6 +32,7 @@ import TrainerSchedules from "@/pages/trainer/Schedules";
 import TrainerStudents from "@/pages/trainer/Students";
 import TrainerTasks from "@/pages/trainer/Tasks";
 import TrainerCourseStudents from "@/pages/trainer/CourseStudents";
+import TrainerClassMaterials from "@/pages/trainer/ClassMaterials";
 
 // Student Pages
 import StudentDashboard from "@/pages/student/Dashboard";
@@ -77,6 +78,7 @@ function TrainerRoutes() {
       <Route path="/courses/:courseId/students" component={TrainerCourseStudents} />
       <Route path="/students" component={TrainerStudents} />
       <Route path="/tasks" component={TrainerTasks} />
+      <Route path="/materials" component={TrainerClassMaterials} />
       <Route path="/schedule" component={TrainerSchedules} />
       <Route component={NotFound} />
     </Switch>
