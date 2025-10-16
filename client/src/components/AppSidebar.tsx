@@ -56,6 +56,7 @@ const menuItems = {
     { title: "My Courses", url: "/courses", icon: BookOpen, testId: "link-student-courses" },
     { title: "Progress", url: "/progress", icon: GraduationCap, testId: "link-student-progress" },
     { title: "Tasks", url: "/tasks", icon: ClipboardList, testId: "link-student-tasks" },
+    { title: "Class Materials", url: "/materials", icon: FileText, testId: "link-student-materials" },
     { title: "Queries", url: "/queries", icon: MessageSquare, testId: "link-student-queries" },
     { title: "Schedule", url: "/schedule", icon: Calendar, testId: "link-student-schedule" },
   ],

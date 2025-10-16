@@ -42,6 +42,7 @@ import StudentTasks from "@/pages/student/Tasks";
 import StudentQueries from "@/pages/student/Queries";
 import StudentSchedule from "@/pages/student/Schedule";
 import StudentCourseDetail from "@/pages/student/CourseDetail";
+import StudentMaterials from "@/pages/student/Materials";
 
 // Role-based routing components
 function AdminRoutes() {
@@ -93,6 +94,7 @@ function StudentRoutes() {
       <Route path="/courses/:courseId" component={StudentCourseDetail} />
       <Route path="/progress" component={StudentProgress} />
       <Route path="/tasks" component={StudentTasks} />
+      <Route path="/materials" component={StudentMaterials} />
       <Route path="/queries" component={StudentQueries} />
       <Route path="/schedule" component={StudentSchedule} />
       <Route component={NotFound} />
