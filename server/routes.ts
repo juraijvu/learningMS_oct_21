@@ -872,6 +872,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Trainer: Assign material to students
+  app.post("/api/class-materials/:materialId/assign", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
+    try {
+      const { materialId } = req.params;
+      const assignSchema = z.object({
+        studentIds: z.array(z.string()).min(1),
+      });
+
+      const { studentIds } = assignSchema.parse(req.body);
+      
+      // Verify material exists and belongs to trainer
+      const material = await storage.getClassMaterialById(materialId);
+      if (!material) {
+        return res.status(404).json({ message: "Material not found" });
+      }
+      
+      if (material.trainerId !== req.currentUser.id) {
+        return res.status(403).json({ message: "Forbidden - You can only assign your own materials" });
+      }
+
+      // Assign to each student
+      const assignments = await Promise.all(
+        studentIds.map(studentId => storage.assignMaterialToStudent(materialId, studentId))
+      );
+
+      res.json({ 
+        message: `Material assigned to ${studentIds.length} student(s)`,
+        assignments 
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid input", errors: error.errors });
+      }
+      console.error("Error assigning material:", error);
+      res.status(500).json({ message: "Failed to assign material" });
+    }
+  });
+
+  // Get trainer's materials
+  app.get("/api/trainer/materials", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
+    try {
+      const trainerId = req.currentUser.id;
+      const materials = await storage.getClassMaterialsByTrainer(trainerId);
+      res.json(materials);
+    } catch (error) {
+      console.error("Error fetching trainer materials:", error);
+      res.status(500).json({ message: "Failed to fetch materials" });
+    }
+  });
+
+  // Get student's assigned materials
+  app.get("/api/student/materials", isAuthenticated, requireRole(['student']), async (req: any, res) => {
+    try {
+      const studentId = req.currentUser.id;
+      const materials = await storage.getStudentMaterials(studentId);
+      res.json(materials);
+    } catch (error) {
+      console.error("Error fetching student materials:", error);
+      res.status(500).json({ message: "Failed to fetch student materials" });
+    }
+  });
+
   // Cleanup expired materials (can be called by a cron job or manually)
   app.post("/api/class-materials/cleanup", isAuthenticated, requireRole(['admin']), async (req, res) => {
     try {

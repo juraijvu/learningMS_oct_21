@@ -11,6 +11,7 @@ import {
   queries,
   relatedCourses,
   classMaterials,
+  materialAssignments,
   type User,
   type UpsertUser,
   type Course,
@@ -31,6 +32,8 @@ import {
   type InsertQuery,
   type ClassMaterial,
   type InsertClassMaterial,
+  type MaterialAssignment,
+  type InsertMaterialAssignment,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql } from "drizzle-orm";
@@ -81,10 +84,16 @@ export interface IStorage {
   
   // Class materials operations
   getClassMaterialsByCourse(courseId: string): Promise<ClassMaterial[]>;
+  getClassMaterialsByTrainer(trainerId: string): Promise<ClassMaterial[]>;
   getClassMaterialById(id: string): Promise<ClassMaterial | undefined>;
   createClassMaterial(material: InsertClassMaterial): Promise<ClassMaterial>;
   deleteClassMaterial(id: string): Promise<void>;
   deleteExpiredMaterials(): Promise<number>;
+  
+  // Material assignment operations
+  assignMaterialToStudent(materialId: string, studentId: string): Promise<MaterialAssignment>;
+  getStudentMaterials(studentId: string): Promise<ClassMaterial[]>;
+  getMaterialAssignments(materialId: string): Promise<MaterialAssignment[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -345,6 +354,46 @@ export class DatabaseStorage implements IStorage {
       .where(sql`${classMaterials.expiresAt} < ${now}`)
       .returning();
     return result.length;
+  }
+
+  async getClassMaterialsByTrainer(trainerId: string): Promise<ClassMaterial[]> {
+    return await db
+      .select()
+      .from(classMaterials)
+      .where(eq(classMaterials.trainerId, trainerId))
+      .orderBy(desc(classMaterials.uploadedAt));
+  }
+
+  // Material assignment operations
+  async assignMaterialToStudent(materialId: string, studentId: string): Promise<MaterialAssignment> {
+    const [assignment] = await db
+      .insert(materialAssignments)
+      .values({ materialId, studentId })
+      .returning();
+    return assignment;
+  }
+
+  async getStudentMaterials(studentId: string): Promise<ClassMaterial[]> {
+    const assignments = await db
+      .select()
+      .from(materialAssignments)
+      .where(eq(materialAssignments.studentId, studentId));
+    
+    if (assignments.length === 0) return [];
+    
+    const materialIds = assignments.map(a => a.materialId);
+    return await db
+      .select()
+      .from(classMaterials)
+      .where(sql`${classMaterials.id} = ANY(${materialIds})`)
+      .orderBy(desc(classMaterials.uploadedAt));
+  }
+
+  async getMaterialAssignments(materialId: string): Promise<MaterialAssignment[]> {
+    return await db
+      .select()
+      .from(materialAssignments)
+      .where(eq(materialAssignments.materialId, materialId));
   }
 }
 
