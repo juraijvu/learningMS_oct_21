@@ -174,6 +174,23 @@ export const activityLogs = pgTable("activity_logs", {
   index("idx_activity_created").on(table.createdAt),
 ]);
 
+// Attendance tracking for class sessions
+export const attendance = pgTable("attendance", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  scheduleId: varchar("schedule_id").notNull().references(() => schedules.id, { onDelete: 'cascade' }),
+  studentId: varchar("student_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  date: timestamp("date").notNull(),
+  status: varchar("status", { enum: ['present', 'absent', 'late'] }).notNull().default('present'),
+  markedAt: timestamp("marked_at").defaultNow().notNull(),
+  verifiedBy: varchar("verified_by").references(() => users.id),
+  verifiedAt: timestamp("verified_at"),
+  notes: text("notes"),
+}, (table) => [
+  index("idx_attendance_student").on(table.studentId),
+  index("idx_attendance_schedule").on(table.scheduleId),
+  index("idx_attendance_date").on(table.date),
+]);
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   enrollments: many(enrollments),
@@ -289,6 +306,21 @@ export const activityLogsRelations = relations(activityLogs, ({ one }) => ({
   }),
 }));
 
+export const attendanceRelations = relations(attendance, ({ one }) => ({
+  schedule: one(schedules, {
+    fields: [attendance.scheduleId],
+    references: [schedules.id],
+  }),
+  student: one(users, {
+    fields: [attendance.studentId],
+    references: [users.id],
+  }),
+  verifier: one(users, {
+    fields: [attendance.verifiedBy],
+    references: [users.id],
+  }),
+}));
+
 // Type exports
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
@@ -328,6 +360,9 @@ export type MaterialAssignment = typeof materialAssignments.$inferSelect;
 
 export type InsertActivityLog = typeof activityLogs.$inferInsert;
 export type ActivityLog = typeof activityLogs.$inferSelect;
+
+export type InsertAttendance = typeof attendance.$inferInsert;
+export type Attendance = typeof attendance.$inferSelect;
 
 // Insert schemas for validation
 export const insertUserSchema = createInsertSchema(users).omit({
@@ -392,4 +427,9 @@ export const insertMaterialAssignmentSchema = createInsertSchema(materialAssignm
 export const insertActivityLogSchema = createInsertSchema(activityLogs).omit({
   id: true,
   createdAt: true,
+});
+
+export const insertAttendanceSchema = createInsertSchema(attendance).omit({
+  id: true,
+  markedAt: true,
 });
