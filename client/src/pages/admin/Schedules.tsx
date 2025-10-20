@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, Clock, User, GraduationCap } from "lucide-react";
+import { Calendar, Clock, User, GraduationCap, Plus } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 
 interface ScheduleItem {
   id: string;
@@ -44,7 +45,15 @@ export default function AdminSchedules() {
 
   return (
     <div className="p-6 space-y-6">
-      <h1 className="text-3xl font-semibold" data-testid="text-schedules-title">All Schedules</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-semibold" data-testid="text-schedules-title">All Schedules</h1>
+        <Button asChild data-testid="button-create-schedule">
+          <a href="/admin/schedules/create">
+            <Plus className="h-4 w-4 mr-2" />
+            Create Schedule
+          </a>
+        </Button>
+      </div>
 
       <Card>
         <CardHeader>
