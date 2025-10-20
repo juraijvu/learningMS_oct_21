@@ -30,6 +30,8 @@ const COURSE_CATEGORIES = [
 export default function CoursesManagement() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newCourse, setNewCourse] = useState({ title: "", description: "", category: "", imageUrl: "", pdfUrl: "" });
+  const [coursePageUrl, setCoursePageUrl] = useState("");
+  const [isFetchingMetadata, setIsFetchingMetadata] = useState(false);
   const { toast } = useToast();
 
   const { data: courses, isLoading } = useQuery<Course[]>({
@@ -46,11 +48,44 @@ export default function CoursesManagement() {
       toast({ title: "Success", description: "Course created successfully" });
       setIsDialogOpen(false);
       setNewCourse({ title: "", description: "", category: "", imageUrl: "", pdfUrl: "" });
+      setCoursePageUrl("");
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     },
   });
+
+  const handleFetchMetadata = async () => {
+    if (!coursePageUrl) {
+      toast({ title: "Error", description: "Please enter a course page URL", variant: "destructive" });
+      return;
+    }
+
+    setIsFetchingMetadata(true);
+    try {
+      const response = await apiRequest("POST", "/api/admin/courses/fetch-metadata", { url: coursePageUrl }) as any;
+      
+      setNewCourse({
+        ...newCourse,
+        title: response.title || newCourse.title,
+        description: response.description || newCourse.description,
+        imageUrl: response.imageUrl || newCourse.imageUrl,
+      });
+      
+      toast({ 
+        title: "Success", 
+        description: "Course details fetched successfully from the page!" 
+      });
+    } catch (error: any) {
+      toast({ 
+        title: "Error", 
+        description: error.message || "Failed to fetch course details", 
+        variant: "destructive" 
+      });
+    } finally {
+      setIsFetchingMetadata(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -84,12 +119,39 @@ export default function CoursesManagement() {
               Create Course
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Create New Course</DialogTitle>
               <DialogDescription>Add a new course to the system</DialogDescription>
             </DialogHeader>
             <div className="space-y-4 pt-4">
+              <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
+                <Label htmlFor="coursePageUrl" className="text-base font-semibold">
+                  ✨ Course Page URL (from orbittraining.ae)
+                </Label>
+                <p className="text-xs text-muted-foreground mb-3 mt-1">
+                  Paste the course page URL and we'll automatically extract the title, description, and image!
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    id="coursePageUrl"
+                    value={coursePageUrl}
+                    onChange={(e) => setCoursePageUrl(e.target.value)}
+                    data-testid="input-course-page-url"
+                    placeholder="https://orbittraining.ae/courses/autocad-training-course-in-dubai-4/"
+                    className="flex-1"
+                  />
+                  <Button 
+                    onClick={handleFetchMetadata}
+                    disabled={isFetchingMetadata || !coursePageUrl}
+                    data-testid="button-fetch-metadata"
+                    type="button"
+                  >
+                    {isFetchingMetadata ? "Fetching..." : "Fetch"}
+                  </Button>
+                </div>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="title">Course Title</Label>
                 <Input
@@ -97,7 +159,7 @@ export default function CoursesManagement() {
                   value={newCourse.title}
                   onChange={(e) => setNewCourse({ ...newCourse, title: e.target.value })}
                   data-testid="input-course-title"
-                  placeholder="e.g., Advanced JavaScript Development"
+                  placeholder="Auto-filled from course page"
                 />
               </div>
               <div className="space-y-2">
@@ -107,7 +169,7 @@ export default function CoursesManagement() {
                   value={newCourse.description}
                   onChange={(e) => setNewCourse({ ...newCourse, description: e.target.value })}
                   data-testid="input-course-description"
-                  placeholder="Describe the course content and objectives..."
+                  placeholder="Auto-filled from course page"
                   rows={4}
                 />
               </div>
@@ -130,17 +192,16 @@ export default function CoursesManagement() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="imageUrl">Course Image URL (Optional)</Label>
+                <Label htmlFor="imageUrl">Course Image URL (Auto-filled)</Label>
                 <Input
                   id="imageUrl"
                   value={newCourse.imageUrl}
                   onChange={(e) => setNewCourse({ ...newCourse, imageUrl: e.target.value })}
                   data-testid="input-course-image"
-                  placeholder="https://orbittraining.ae/storage/2025/02/course-image.png"
+                  placeholder="Auto-filled from course page"
+                  disabled
+                  className="bg-muted"
                 />
-                <p className="text-xs text-muted-foreground">
-                  Add an image URL from your website to display course thumbnails
-                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="pdfUrl">Course PDF URL (Optional)</Label>

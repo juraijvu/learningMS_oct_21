@@ -11,6 +11,8 @@ import multer from "multer";
 import path from "path";
 import fs from "fs/promises";
 import { ActivityLogger } from "./activityLogger";
+import * as cheerio from "cheerio";
+import fetch from "node-fetch";
 
 // Role-based middleware
 const requireRole = (roles: string[]) => {
@@ -251,6 +253,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error creating course:", error);
       res.status(500).json({ message: "Failed to create course" });
+    }
+  });
+
+  // Admin: Fetch course metadata from URL (extracts OG image and description)
+  app.post("/api/admin/courses/fetch-metadata", isAuthenticated, requireRole(['admin']), async (req, res) => {
+    try {
+      const { url } = z.object({ url: z.string().url() }).parse(req.body);
+      
+      // Security: Only allow fetching from orbittraining.ae domain (prevent SSRF)
+      const urlObj = new URL(url);
+      const hostname = urlObj.hostname.toLowerCase();
+      if (hostname !== 'orbittraining.ae' && !hostname.endsWith('.orbittraining.ae')) {
+        return res.status(400).json({ message: "Only orbittraining.ae URLs are allowed for security reasons" });
+      }
+      
+      // Performance: Add 5-second timeout to prevent hanging requests
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      
+      try {
+        // Fetch the HTML content with timeout
+        const response = await fetch(url, { 
+          signal: controller.signal,
+          headers: { 'User-Agent': 'OrbitLMS/1.0' }
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+          return res.status(400).json({ message: "Failed to fetch course page" });
+        }
+        
+        const html = await response.text();
+        const $ = cheerio.load(html);
+        
+        // Extract OG metadata
+        const ogImage = $('meta[property="og:image"]').attr('content') || 
+                        $('meta[name="og:image"]').attr('content') ||
+                        $('img').first().attr('src');
+        
+        const ogDescription = $('meta[property="og:description"]').attr('content') || 
+                              $('meta[name="og:description"]').attr('content') ||
+                              $('meta[name="description"]').attr('content') ||
+                              $('p').first().text().trim();
+        
+        const ogTitle = $('meta[property="og:title"]').attr('content') || 
+                        $('meta[name="og:title"]').attr('content') ||
+                        $('title').text().trim() ||
+                        $('h1').first().text().trim();
+        
+        res.json({
+          title: ogTitle,
+          description: ogDescription,
+          imageUrl: ogImage
+        });
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId);
+        if (fetchError.name === 'AbortError') {
+          return res.status(408).json({ message: "Request timeout - the course page took too long to respond" });
+        }
+        throw fetchError;
+      }
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid URL format" });
+      }
+      console.error("Error fetching course metadata:", error);
+      res.status(500).json({ message: "Failed to fetch course metadata" });
     }
   });
 
