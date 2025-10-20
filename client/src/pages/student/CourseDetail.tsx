@@ -1,16 +1,28 @@
 import { useParams } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, BookOpen, FileText, CheckCircle, Download, Video, FileIcon } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 interface Module {
   id: string;
   title: string;
   subPoints: string[];
   order: number;
+}
+
+interface ModuleProgress {
+  id: string;
+  moduleId: string;
+  title: string;
+  courseTitle: string;
+  subPoints: string[];
+  isCompleted: boolean;
+  completedAt?: string;
 }
 
 interface Course {
@@ -33,6 +45,7 @@ interface ClassMaterial {
 
 export default function StudentCourseDetail() {
   const { courseId } = useParams<{ courseId: string }>();
+  const { toast } = useToast();
 
   const { data: course, isLoading: loadingCourse } = useQuery<Course>({
     queryKey: [`/api/courses/${courseId}`],
@@ -45,6 +58,35 @@ export default function StudentCourseDetail() {
   const { data: materials, isLoading: loadingMaterials } = useQuery<ClassMaterial[]>({
     queryKey: [`/api/class-materials/${courseId}`],
   });
+
+  const { data: progress } = useQuery<ModuleProgress[]>({
+    queryKey: ['/api/student/progress'],
+  });
+
+  const completeModuleMutation = useMutation({
+    mutationFn: (moduleId: string) =>
+      apiRequest(`/api/student/progress/${moduleId}/complete`, {
+        method: "POST",
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/student/progress'] });
+      toast({
+        title: "Module Completed!",
+        description: "You've marked this module as complete.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to mark module as complete. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const isModuleCompleted = (moduleId: string) => {
+    return progress?.some(p => p.moduleId === moduleId && p.isCompleted) || false;
+  };
 
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return bytes + ' B';
@@ -170,32 +212,56 @@ export default function StudentCourseDetail() {
             </div>
           ) : (
             <div className="space-y-4">
-              {modules?.map((module, index) => (
-                <div
-                  key={module.id}
-                  className="p-4 rounded-lg border"
-                  data-testid={`module-${module.id}`}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10">
-                      <span className="text-sm font-medium text-primary">{index + 1}</span>
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-medium mb-2">{module.title}</h3>
-                      {module.subPoints && module.subPoints.length > 0 && (
-                        <ul className="space-y-1">
-                          {module.subPoints.map((point, i) => (
-                            <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
-                              <span className="text-primary mt-1">•</span>
-                              <span>{point}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
+              {modules?.map((module, index) => {
+                const completed = isModuleCompleted(module.id);
+                return (
+                  <div
+                    key={module.id}
+                    className="p-4 rounded-lg border"
+                    data-testid={`module-${module.id}`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className={`flex items-center justify-center w-8 h-8 rounded-full ${completed ? 'bg-green-100 dark:bg-green-900' : 'bg-primary/10'}`}>
+                        {completed ? (
+                          <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+                        ) : (
+                          <span className="text-sm font-medium text-primary">{index + 1}</span>
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <h3 className="font-medium">{module.title}</h3>
+                          {completed && (
+                            <Badge variant="default" className="bg-green-600 dark:bg-green-700">Completed</Badge>
+                          )}
+                        </div>
+                        {module.subPoints && module.subPoints.length > 0 && (
+                          <ul className="space-y-1">
+                            {module.subPoints.map((point, i) => (
+                              <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
+                                <span className="text-primary mt-1">•</span>
+                                <span>{point}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        {!completed && (
+                          <Button
+                            size="sm"
+                            className="mt-3"
+                            onClick={() => completeModuleMutation.mutate(module.id)}
+                            disabled={completeModuleMutation.isPending}
+                            data-testid={`button-complete-${module.id}`}
+                          >
+                            <CheckCircle className="h-4 w-4 mr-1" />
+                            {completeModuleMutation.isPending ? "Marking..." : "Mark as Complete"}
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
