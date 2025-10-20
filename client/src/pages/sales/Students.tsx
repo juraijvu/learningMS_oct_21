@@ -14,8 +14,7 @@ interface Student {
 
 export default function SalesStudents() {
   const { data: students, isLoading } = useQuery<Student[]>({
-    queryKey: ["/api/admin/users"],
-    select: (users: any[]) => users.filter(u => u.role === 'student'),
+    queryKey: ["/api/admin/students"],
   });
 
   if (isLoading) {

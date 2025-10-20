@@ -1313,7 +1313,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin: Get all trainers
-  app.get("/api/admin/trainers", isAuthenticated, requireRole(['admin']), async (req: any, res) => {
+  app.get("/api/admin/trainers", isAuthenticated, requireRole(['admin', 'sales_consultant']), async (req: any, res) => {
     try {
       const allUsers = await storage.getAllUsers();
       const trainers = allUsers.filter(u => u.role === 'trainer').map(u => {

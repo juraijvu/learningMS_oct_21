@@ -41,12 +41,13 @@ export default function SalesCreateSchedule() {
     queryKey: ['/api/courses'],
   });
 
-  const { data: allUsers } = useQuery<User[]>({
-    queryKey: ['/api/admin/users'],
+  const { data: students } = useQuery<User[]>({
+    queryKey: ['/api/admin/students'],
   });
 
-  const students = allUsers?.filter(u => u.role === 'student') || [];
-  const trainers = allUsers?.filter(u => u.role === 'trainer') || [];
+  const { data: trainers } = useQuery<User[]>({
+    queryKey: ['/api/admin/trainers'],
+  });
 
   const form = useForm<z.infer<typeof scheduleSchema>>({
     resolver: zodResolver(scheduleSchema),
