@@ -163,3 +163,14 @@
 [x] 163. All database tables created and populated with demo data
 [x] 164. Automatic cleanup service running without errors
 [x] 165. ✅ MIGRATION FROM REPLIT AGENT TO REPLIT ENVIRONMENT COMPLETED SUCCESSFULLY ✅
+[x] 166. Added category field to courses table for course categorization
+[x] 167. Created enrollmentRequests table to track student enrollment requests
+[x] 168. Updated storage interface with enrollment request CRUD operations
+[x] 169. Created API routes for enrollment request management (create, list, approve, reject)
+[x] 170. Built student UI to show related courses by category with Enroll Now button
+[x] 171. Built admin/sales EnrollmentRequests page to manage enrollment requests
+[x] 172. Added enrollment requests navigation to admin and sales sidebars
+[x] 173. Applied database migrations successfully (npm run db:push)
+[x] 174. Fixed validation schema issue in POST /api/enrollment-requests endpoint
+[x] 175. Architect review completed - all critical issues resolved
+[x] 176. ✅ COURSE CATEGORY & ENROLLMENT REQUEST SYSTEM FULLY IMPLEMENTED ✅
