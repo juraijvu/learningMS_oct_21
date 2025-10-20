@@ -29,7 +29,7 @@ const COURSE_CATEGORIES = [
 
 export default function CoursesManagement() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [newCourse, setNewCourse] = useState({ title: "", description: "", category: "", pdfUrl: "" });
+  const [newCourse, setNewCourse] = useState({ title: "", description: "", category: "", imageUrl: "", pdfUrl: "" });
   const { toast } = useToast();
 
   const { data: courses, isLoading } = useQuery<Course[]>({
@@ -45,7 +45,7 @@ export default function CoursesManagement() {
       queryClient.invalidateQueries({ queryKey: ["/api/courses"] });
       toast({ title: "Success", description: "Course created successfully" });
       setIsDialogOpen(false);
-      setNewCourse({ title: "", description: "", category: "", pdfUrl: "" });
+      setNewCourse({ title: "", description: "", category: "", imageUrl: "", pdfUrl: "" });
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -130,6 +130,19 @@ export default function CoursesManagement() {
                 </Select>
               </div>
               <div className="space-y-2">
+                <Label htmlFor="imageUrl">Course Image URL (Optional)</Label>
+                <Input
+                  id="imageUrl"
+                  value={newCourse.imageUrl}
+                  onChange={(e) => setNewCourse({ ...newCourse, imageUrl: e.target.value })}
+                  data-testid="input-course-image"
+                  placeholder="https://orbittraining.ae/storage/2025/02/course-image.png"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Add an image URL from your website to display course thumbnails
+                </p>
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="pdfUrl">Course PDF URL (Optional)</Label>
                 <Input
                   id="pdfUrl"
@@ -163,12 +176,26 @@ export default function CoursesManagement() {
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {courses?.map((course) => (
-            <Card key={course.id} className="hover-elevate" data-testid={`card-course-${course.id}`}>
+            <Card key={course.id} className="hover-elevate overflow-hidden" data-testid={`card-course-${course.id}`}>
+              {course.imageUrl && (
+                <div className="w-full h-48 overflow-hidden bg-muted">
+                  <img 
+                    src={course.imageUrl} 
+                    alt={course.title}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                </div>
+              )}
               <CardHeader>
                 <div className="flex items-start gap-3">
-                  <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-primary/10">
-                    <BookOpen className="h-6 w-6 text-primary" />
-                  </div>
+                  {!course.imageUrl && (
+                    <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-primary/10">
+                      <BookOpen className="h-6 w-6 text-primary" />
+                    </div>
+                  )}
                   <div className="flex-1">
                     <CardTitle className="text-lg">{course.title}</CardTitle>
                     {course.category && (

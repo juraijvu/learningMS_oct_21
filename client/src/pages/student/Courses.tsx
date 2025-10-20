@@ -13,6 +13,7 @@ interface EnrolledCourse {
   title: string;
   description: string;
   category?: string;
+  imageUrl?: string;
   pdfUrl?: string;
   moduleCount: number;
   completedModules: number;
@@ -23,6 +24,7 @@ interface Course {
   title: string;
   description: string;
   category?: string;
+  imageUrl?: string;
   pdfUrl?: string;
 }
 
@@ -117,12 +119,26 @@ export default function StudentCourses() {
               : 0;
 
             return (
-              <Card key={course.id} className="hover-elevate" data-testid={`card-course-${course.id}`}>
+              <Card key={course.id} className="hover-elevate overflow-hidden" data-testid={`card-course-${course.id}`}>
+                {course.imageUrl && (
+                  <div className="w-full h-48 overflow-hidden bg-muted">
+                    <img 
+                      src={course.imageUrl} 
+                      alt={course.title}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  </div>
+                )}
                 <CardHeader>
                   <div className="flex items-start gap-3">
-                    <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-gradient-to-br from-primary to-chart-2">
-                      <BookOpen className="h-6 w-6 text-primary-foreground" />
-                    </div>
+                    {!course.imageUrl && (
+                      <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-gradient-to-br from-primary to-chart-2">
+                        <BookOpen className="h-6 w-6 text-primary-foreground" />
+                      </div>
+                    )}
                     <div className="flex-1">
                       <CardTitle className="text-lg">{course.title}</CardTitle>
                       {course.category && (
@@ -181,12 +197,26 @@ export default function StudentCourses() {
 
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {filteredRelatedCourses.map((course) => (
-              <Card key={course.id} className="hover-elevate" data-testid={`card-related-course-${course.id}`}>
+              <Card key={course.id} className="hover-elevate overflow-hidden" data-testid={`card-related-course-${course.id}`}>
+                {course.imageUrl && (
+                  <div className="w-full h-40 overflow-hidden bg-muted">
+                    <img 
+                      src={course.imageUrl} 
+                      alt={course.title}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  </div>
+                )}
                 <CardHeader>
                   <div className="flex items-start gap-3">
-                    <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-gradient-to-br from-chart-3 to-chart-4">
-                      <BookOpen className="h-5 w-5 text-primary-foreground" />
-                    </div>
+                    {!course.imageUrl && (
+                      <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-gradient-to-br from-chart-3 to-chart-4">
+                        <BookOpen className="h-5 w-5 text-primary-foreground" />
+                      </div>
+                    )}
                     <div className="flex-1">
                       <CardTitle className="text-base">{course.title}</CardTitle>
                       {course.category && (

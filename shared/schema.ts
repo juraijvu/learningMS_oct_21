@@ -44,6 +44,7 @@ export const courses = pgTable("courses", {
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description").notNull(),
   category: varchar("category", { length: 100 }),
+  imageUrl: varchar("image_url", { length: 500 }),
   pdfUrl: varchar("pdf_url", { length: 500 }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
