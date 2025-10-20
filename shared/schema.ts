@@ -43,6 +43,7 @@ export const courses = pgTable("courses", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description").notNull(),
+  category: varchar("category", { length: 100 }),
   pdfUrl: varchar("pdf_url", { length: 500 }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -156,6 +157,21 @@ export const materialAssignments = pgTable("material_assignments", {
   studentId: varchar("student_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   assignedAt: timestamp("assigned_at").defaultNow().notNull(),
 });
+
+// Enrollment requests from students
+export const enrollmentRequests = pgTable("enrollment_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  studentId: varchar("student_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  courseId: varchar("course_id").notNull().references(() => courses.id, { onDelete: 'cascade' }),
+  status: varchar("status", { enum: ['pending', 'approved', 'rejected'] }).notNull().default('pending'),
+  message: text("message"),
+  reviewedBy: varchar("reviewed_by").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_enrollment_request_student").on(table.studentId),
+  index("idx_enrollment_request_status").on(table.status),
+]);
 
 // Activity logs for tracking all user actions
 export const activityLogs = pgTable("activity_logs", {
@@ -295,6 +311,21 @@ export const materialAssignmentsRelations = relations(materialAssignments, ({ on
   }),
 }));
 
+export const enrollmentRequestsRelations = relations(enrollmentRequests, ({ one }) => ({
+  student: one(users, {
+    fields: [enrollmentRequests.studentId],
+    references: [users.id],
+  }),
+  course: one(courses, {
+    fields: [enrollmentRequests.courseId],
+    references: [courses.id],
+  }),
+  reviewer: one(users, {
+    fields: [enrollmentRequests.reviewedBy],
+    references: [users.id],
+  }),
+}));
+
 export const activityLogsRelations = relations(activityLogs, ({ one }) => ({
   user: one(users, {
     fields: [activityLogs.userId],
@@ -363,6 +394,9 @@ export type ActivityLog = typeof activityLogs.$inferSelect;
 
 export type InsertAttendance = typeof attendance.$inferInsert;
 export type Attendance = typeof attendance.$inferSelect;
+
+export type InsertEnrollmentRequest = typeof enrollmentRequests.$inferInsert;
+export type EnrollmentRequest = typeof enrollmentRequests.$inferSelect;
 
 // Insert schemas for validation
 export const insertUserSchema = createInsertSchema(users).omit({
@@ -434,4 +468,10 @@ export const insertActivityLogSchema = createInsertSchema(activityLogs).omit({
 export const insertAttendanceSchema = createInsertSchema(attendance).omit({
   id: true,
   markedAt: true,
+});
+
+export const insertEnrollmentRequestSchema = createInsertSchema(enrollmentRequests).omit({
+  id: true,
+  createdAt: true,
+  reviewedAt: true,
 });

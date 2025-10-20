@@ -21,6 +21,7 @@ import AdminCourseModules from "@/pages/admin/CourseModules";
 import AdminAssignTrainers from "@/pages/admin/AssignTrainers";
 import AdminActivityLogs from "@/pages/admin/ActivityLogs";
 import AdminManageCourses from "@/pages/admin/ManageCourses";
+import AdminEnrollmentRequests from "@/pages/admin/EnrollmentRequests";
 
 // Sales Pages
 import SalesDashboard from "@/pages/sales/Dashboard";
@@ -61,6 +62,7 @@ function AdminRoutes() {
       <Route path="/courses/:courseId/modules" component={AdminCourseModules} />
       <Route path="/courses/:courseId/assign" component={AdminAssignTrainers} />
       <Route path="/manage-courses" component={AdminManageCourses} />
+      <Route path="/enrollment-requests" component={AdminEnrollmentRequests} />
       <Route path="/activity-logs" component={AdminActivityLogs} />
       <Route path="/schedules/create" component={AdminCreateSchedule} />
       <Route path="/schedules" component={AdminSchedules} />
@@ -75,6 +77,7 @@ function SalesRoutes() {
       <Route path="/" component={SalesDashboard} />
       <Route path="/courses" component={SalesCourses} />
       <Route path="/enroll" component={SalesEnrollStudent} />
+      <Route path="/enrollment-requests" component={AdminEnrollmentRequests} />
       <Route path="/students" component={SalesStudents} />
       <Route path="/schedules/create" component={SalesCreateSchedule} />
       <Route path="/schedules" component={SalesSchedules} />

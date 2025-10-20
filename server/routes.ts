@@ -2,9 +2,9 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated, hashPassword, verifyPassword } from "./auth";
-import { insertCourseSchema, insertModuleSchema, insertEnrollmentSchema, insertTaskSchema, insertScheduleSchema, insertQuerySchema, insertUserSchema, insertTrainerAssignmentSchema, insertClassMaterialSchema, insertAttendanceSchema, classMaterials } from "@shared/schema";
+import { insertCourseSchema, insertModuleSchema, insertEnrollmentSchema, insertTaskSchema, insertScheduleSchema, insertQuerySchema, insertUserSchema, insertTrainerAssignmentSchema, insertClassMaterialSchema, insertAttendanceSchema, insertEnrollmentRequestSchema, classMaterials } from "@shared/schema";
 import { db } from "./db";
-import { courses, modules, enrollments, users, trainerAssignments, moduleProgress, tasks, schedules, queries, attendance } from "@shared/schema";
+import { courses, modules, enrollments, users, trainerAssignments, moduleProgress, tasks, schedules, queries, attendance, enrollmentRequests } from "@shared/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { z } from "zod";
 import multer from "multer";
@@ -1339,6 +1339,203 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching students:", error);
       res.status(500).json({ message: "Failed to fetch students" });
+    }
+  });
+
+  // ============ ENROLLMENT REQUEST ROUTES ============
+  
+  // Student: Create enrollment request
+  app.post("/api/enrollment-requests", isAuthenticated, requireRole(['student']), async (req: any, res) => {
+    try {
+      const requestSchema = z.object({
+        courseId: z.string(),
+        message: z.string().optional(),
+      });
+
+      const { courseId, message } = requestSchema.parse(req.body);
+      const studentId = req.currentUser.id;
+
+      // Verify course exists
+      const course = await storage.getCourse(courseId);
+      if (!course) {
+        return res.status(404).json({ message: "Course not found" });
+      }
+
+      // Check if already enrolled
+      const existingEnrollments = await db
+        .select()
+        .from(enrollments)
+        .where(and(
+          eq(enrollments.studentId, studentId),
+          eq(enrollments.courseId, courseId)
+        ));
+
+      if (existingEnrollments.length > 0) {
+        return res.status(400).json({ message: "You are already enrolled in this course" });
+      }
+
+      // Check if request already exists
+      const existingRequests = await db
+        .select()
+        .from(enrollmentRequests)
+        .where(and(
+          eq(enrollmentRequests.studentId, studentId),
+          eq(enrollmentRequests.courseId, courseId),
+          eq(enrollmentRequests.status, 'pending')
+        ));
+
+      if (existingRequests.length > 0) {
+        return res.status(400).json({ message: "You already have a pending enrollment request for this course" });
+      }
+
+      // Create enrollment request
+      const request = await storage.createEnrollmentRequest({
+        studentId,
+        courseId,
+        message,
+        status: 'pending',
+      });
+
+      res.json({ 
+        message: `Enrollment request sent for "${course.title}"`,
+        request 
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid input", errors: error.errors });
+      }
+      console.error("Error creating enrollment request:", error);
+      res.status(500).json({ message: "Failed to create enrollment request" });
+    }
+  });
+
+  // Admin/Sales: Get all enrollment requests
+  app.get("/api/enrollment-requests", isAuthenticated, requireRole(['admin', 'sales_consultant']), async (req: any, res) => {
+    try {
+      const requests = await storage.getAllEnrollmentRequests();
+      
+      // Enrich with student and course data
+      const enrichedRequests = await Promise.all(
+        requests.map(async (request) => {
+          const student = await storage.getUser(request.studentId);
+          const course = await storage.getCourse(request.courseId);
+          const reviewer = request.reviewedBy ? await storage.getUser(request.reviewedBy) : null;
+          
+          return {
+            ...request,
+            student: student ? { id: student.id, username: student.username, email: student.email } : null,
+            course: course ? { id: course.id, title: course.title } : null,
+            reviewer: reviewer ? { id: reviewer.id, username: reviewer.username } : null,
+          };
+        })
+      );
+      
+      res.json(enrichedRequests);
+    } catch (error) {
+      console.error("Error fetching enrollment requests:", error);
+      res.status(500).json({ message: "Failed to fetch enrollment requests" });
+    }
+  });
+
+  // Admin/Sales: Get pending enrollment requests
+  app.get("/api/enrollment-requests/pending", isAuthenticated, requireRole(['admin', 'sales_consultant']), async (req: any, res) => {
+    try {
+      const requests = await storage.getPendingEnrollmentRequests();
+      
+      // Enrich with student and course data
+      const enrichedRequests = await Promise.all(
+        requests.map(async (request) => {
+          const student = await storage.getUser(request.studentId);
+          const course = await storage.getCourse(request.courseId);
+          
+          return {
+            ...request,
+            student: student ? { id: student.id, username: student.username, email: student.email } : null,
+            course: course ? { id: course.id, title: course.title } : null,
+          };
+        })
+      );
+      
+      res.json(enrichedRequests);
+    } catch (error) {
+      console.error("Error fetching pending enrollment requests:", error);
+      res.status(500).json({ message: "Failed to fetch pending enrollment requests" });
+    }
+  });
+
+  // Student: Get my enrollment requests
+  app.get("/api/my-enrollment-requests", isAuthenticated, requireRole(['student']), async (req: any, res) => {
+    try {
+      const studentId = req.currentUser.id;
+      const requests = await storage.getEnrollmentRequestsByStudent(studentId);
+      
+      // Enrich with course data
+      const enrichedRequests = await Promise.all(
+        requests.map(async (request) => {
+          const course = await storage.getCourse(request.courseId);
+          const reviewer = request.reviewedBy ? await storage.getUser(request.reviewedBy) : null;
+          
+          return {
+            ...request,
+            course: course ? { id: course.id, title: course.title, category: course.category } : null,
+            reviewer: reviewer ? { id: reviewer.id, username: reviewer.username } : null,
+          };
+        })
+      );
+      
+      res.json(enrichedRequests);
+    } catch (error) {
+      console.error("Error fetching my enrollment requests:", error);
+      res.status(500).json({ message: "Failed to fetch enrollment requests" });
+    }
+  });
+
+  // Admin/Sales: Approve enrollment request
+  app.post("/api/enrollment-requests/:id/approve", isAuthenticated, requireRole(['admin', 'sales_consultant']), async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const reviewerId = req.currentUser.id;
+
+      const request = await storage.approveEnrollmentRequest(id, reviewerId, reviewerId);
+      
+      res.json({ 
+        message: "Enrollment request approved",
+        request 
+      });
+    } catch (error) {
+      console.error("Error approving enrollment request:", error);
+      res.status(500).json({ message: "Failed to approve enrollment request" });
+    }
+  });
+
+  // Admin/Sales: Reject enrollment request
+  app.post("/api/enrollment-requests/:id/reject", isAuthenticated, requireRole(['admin', 'sales_consultant']), async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { message } = req.body;
+      const reviewerId = req.currentUser.id;
+
+      const request = await storage.rejectEnrollmentRequest(id, reviewerId, message);
+      
+      res.json({ 
+        message: "Enrollment request rejected",
+        request 
+      });
+    } catch (error) {
+      console.error("Error rejecting enrollment request:", error);
+      res.status(500).json({ message: "Failed to reject enrollment request" });
+    }
+  });
+
+  // Public (authenticated): Get courses by category
+  app.get("/api/courses/category/:category", isAuthenticated, async (req: any, res) => {
+    try {
+      const { category } = req.params;
+      const courses = await storage.getCoursesByCategory(category);
+      res.json(courses);
+    } catch (error) {
+      console.error("Error fetching courses by category:", error);
+      res.status(500).json({ message: "Failed to fetch courses" });
     }
   });
 

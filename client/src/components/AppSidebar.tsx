@@ -9,7 +9,8 @@ import {
   MessageSquare,
   FileText,
   Activity,
-  Settings
+  Settings,
+  UserCheck
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
@@ -37,6 +38,7 @@ const menuItems = {
     { title: "Users", url: "/users", icon: Users, testId: "link-admin-users" },
     { title: "Courses", url: "/courses", icon: BookOpen, testId: "link-admin-courses" },
     { title: "Manage Courses", url: "/manage-courses", icon: Settings, testId: "link-admin-manage-courses" },
+    { title: "Enrollment Requests", url: "/enrollment-requests", icon: UserCheck, testId: "link-admin-enrollment-requests" },
     { title: "Activity Logs", url: "/activity-logs", icon: Activity, testId: "link-admin-activity-logs" },
     { title: "Schedules", url: "/schedules", icon: Calendar, testId: "link-admin-schedules" },
   ],
@@ -44,6 +46,7 @@ const menuItems = {
     { title: "Dashboard", url: "/", icon: LayoutDashboard, testId: "link-sales-dashboard" },
     { title: "Students", url: "/students", icon: Users, testId: "link-sales-students" },
     { title: "Enroll Student", url: "/enroll", icon: UserPlus, testId: "link-sales-enroll" },
+    { title: "Enrollment Requests", url: "/enrollment-requests", icon: UserCheck, testId: "link-sales-enrollment-requests" },
     { title: "Courses", url: "/courses", icon: BookOpen, testId: "link-sales-courses" },
     { title: "Schedules", url: "/schedules", icon: Calendar, testId: "link-sales-schedules" },
   ],

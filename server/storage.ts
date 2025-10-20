@@ -14,6 +14,7 @@ import {
   materialAssignments,
   activityLogs,
   attendance,
+  enrollmentRequests,
   type User,
   type UpsertUser,
   type Course,
@@ -40,6 +41,8 @@ import {
   type InsertActivityLog,
   type Attendance,
   type InsertAttendance,
+  type EnrollmentRequest,
+  type InsertEnrollmentRequest,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql } from "drizzle-orm";
@@ -113,6 +116,15 @@ export interface IStorage {
   getAttendanceByTrainer(trainerId: string): Promise<Attendance[]>;
   getAttendanceBySchedule(scheduleId: string): Promise<Attendance[]>;
   verifyAttendance(id: string, trainerId: string, notes?: string): Promise<Attendance>;
+  
+  // Enrollment request operations
+  createEnrollmentRequest(request: InsertEnrollmentRequest): Promise<EnrollmentRequest>;
+  getAllEnrollmentRequests(): Promise<EnrollmentRequest[]>;
+  getPendingEnrollmentRequests(): Promise<EnrollmentRequest[]>;
+  getEnrollmentRequestsByStudent(studentId: string): Promise<EnrollmentRequest[]>;
+  approveEnrollmentRequest(id: string, reviewerId: string, enrolledById: string): Promise<EnrollmentRequest>;
+  rejectEnrollmentRequest(id: string, reviewerId: string, message?: string): Promise<EnrollmentRequest>;
+  getCoursesByCategory(category: string): Promise<Course[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -502,6 +514,91 @@ export class DatabaseStorage implements IStorage {
       .where(eq(attendance.id, id))
       .returning();
     return result;
+  }
+
+  // Enrollment request operations
+  async createEnrollmentRequest(requestData: InsertEnrollmentRequest): Promise<EnrollmentRequest> {
+    const [request] = await db
+      .insert(enrollmentRequests)
+      .values(requestData)
+      .returning();
+    return request;
+  }
+
+  async getAllEnrollmentRequests(): Promise<EnrollmentRequest[]> {
+    return await db
+      .select()
+      .from(enrollmentRequests)
+      .orderBy(desc(enrollmentRequests.createdAt));
+  }
+
+  async getPendingEnrollmentRequests(): Promise<EnrollmentRequest[]> {
+    return await db
+      .select()
+      .from(enrollmentRequests)
+      .where(eq(enrollmentRequests.status, 'pending'))
+      .orderBy(desc(enrollmentRequests.createdAt));
+  }
+
+  async getEnrollmentRequestsByStudent(studentId: string): Promise<EnrollmentRequest[]> {
+    return await db
+      .select()
+      .from(enrollmentRequests)
+      .where(eq(enrollmentRequests.studentId, studentId))
+      .orderBy(desc(enrollmentRequests.createdAt));
+  }
+
+  async approveEnrollmentRequest(id: string, reviewerId: string, enrolledById: string): Promise<EnrollmentRequest> {
+    const [request] = await db
+      .select()
+      .from(enrollmentRequests)
+      .where(eq(enrollmentRequests.id, id));
+
+    if (!request) {
+      throw new Error('Enrollment request not found');
+    }
+
+    await db
+      .insert(enrollments)
+      .values({
+        studentId: request.studentId,
+        courseId: request.courseId,
+        enrolledBy: enrolledById,
+      });
+
+    const [updated] = await db
+      .update(enrollmentRequests)
+      .set({
+        status: 'approved',
+        reviewedBy: reviewerId,
+        reviewedAt: new Date(),
+      })
+      .where(eq(enrollmentRequests.id, id))
+      .returning();
+
+    return updated;
+  }
+
+  async rejectEnrollmentRequest(id: string, reviewerId: string, message?: string): Promise<EnrollmentRequest> {
+    const [updated] = await db
+      .update(enrollmentRequests)
+      .set({
+        status: 'rejected',
+        reviewedBy: reviewerId,
+        reviewedAt: new Date(),
+        message: message,
+      })
+      .where(eq(enrollmentRequests.id, id))
+      .returning();
+    return updated;
+  }
+
+  async getCoursesByCategory(category: string): Promise<Course[]> {
+    return await db
+      .select()
+      .from(courses)
+      .where(eq(courses.category, category))
+      .orderBy(desc(courses.createdAt));
   }
 }
 
