@@ -48,7 +48,7 @@ export default function SalesSchedules() {
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-semibold" data-testid="text-schedules-title">All Schedules</h1>
         <Button asChild data-testid="button-create-schedule">
-          <a href="/sales/schedules/create">
+          <a href="/schedules/create">
             <Plus className="h-4 w-4 mr-2" />
             Create Schedule
           </a>

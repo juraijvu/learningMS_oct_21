@@ -134,3 +134,10 @@
 [x] 134. All database tables created and populated with demo data
 [x] 135. Automatic cleanup service running without errors
 [x] 136. ✅ MIGRATION FROM REPLIT AGENT TO REPLIT ENVIRONMENT COMPLETED SUCCESSFULLY ✅
+[x] 137. Fixed 404 error on /sales/schedules/create page
+[x] 138. Corrected apiRequest function call signature in SalesCreateSchedule component
+[x] 139. Fixed TypeScript error in CreateSchedule mutation
+[x] 140. Updated hardcoded links to use correct route paths without /sales prefix
+[x] 141. Fixed CreateSchedule back button link from /sales/schedules to /schedules
+[x] 142. Fixed Schedules create button link from /sales/schedules/create to /schedules/create
+[x] 143. All sales schedule pages now accessible with correct URLs

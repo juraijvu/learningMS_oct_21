@@ -62,13 +62,9 @@ export default function SalesCreateSchedule() {
 
   const createScheduleMutation = useMutation({
     mutationFn: (data: z.infer<typeof scheduleSchema>) =>
-      apiRequest('/api/sales/schedules', {
-        method: 'POST',
-        body: JSON.stringify({
-          ...data,
-          dayOfWeek: parseInt(data.dayOfWeek),
-        }),
-        headers: { 'Content-Type': 'application/json' },
+      apiRequest('POST', '/api/sales/schedules', {
+        ...data,
+        dayOfWeek: parseInt(data.dayOfWeek),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/sales/schedules'] });
@@ -97,7 +93,7 @@ export default function SalesCreateSchedule() {
     <div className="p-6 space-y-6">
       <div className="flex items-center gap-4">
         <Button variant="outline" size="icon" asChild>
-          <a href="/sales/schedules" data-testid="button-back">
+          <a href="/schedules" data-testid="button-back">
             <ArrowLeft className="h-4 w-4" />
           </a>
         </Button>
