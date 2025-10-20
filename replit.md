@@ -96,6 +96,9 @@ Note: Users can change their passwords after first login using the password chan
 - **schedules:** Time-based scheduling for courses/sessions
 - **queries:** Student questions/support tickets with trainer responses
 - **relatedCourses:** Relationship table for course prerequisites/suggestions
+- **classMaterials:** Video and note uploads with expiration tracking and automatic cleanup
+- **materialAssignments:** Tracks student assignments for class materials
+- **activityLogs:** Comprehensive activity tracking for all user actions (login, logout, course assignments, etc.)
 
 **Database Architecture Decisions:**
 - PostgreSQL chosen for robust relational data handling and ACID compliance
@@ -141,3 +144,40 @@ Note: Users can change their passwords after first login using the password chan
 - **date-fns:** Date manipulation and formatting
 - **nanoid:** Unique ID generation
 - **memoizee:** Function result caching
+
+## Recent Changes
+
+### Admin Activity Tracking & Super Access Features (October 2025)
+
+**Activity Tracking System:**
+- Implemented comprehensive activity logging to track all user actions
+- Created `activityLogs` database table with user, action, details, and timestamp
+- Built `ActivityLogger` service (`server/activityLogger.ts`) for centralized logging
+- Activity logging integrated into login/logout flows and admin operations
+- Admin dashboard displays activity feed with user details, actions, and timestamps
+
+**Admin Super Access Features:**
+- **Activity Logs Page** (`/activity-logs`): View all user activities with beautiful timeline feed
+- **Manage Courses Page** (`/manage-courses`): Assign courses to trainers and enroll students
+- Admin can now directly assign courses to any trainer
+- Admin can now enroll any student in any course
+- Both operations are logged in the activity tracking system
+
+**API Endpoints Added:**
+- `GET /api/admin/activity-logs` - Fetch all activity logs
+- `POST /api/admin/assign-course-to-trainer` - Assign courses to trainers
+- `POST /api/admin/enroll-student` - Enroll students in courses
+- `GET /api/admin/trainers` - List all trainers
+- `GET /api/admin/students` - List all students
+
+**Technical Implementation:**
+- Activity logs stored in PostgreSQL with user ID, action type, and details
+- Real-time cache invalidation using TanStack Query
+- Toast notifications for success/error feedback
+- Loading states and skeleton UI during data fetching
+- Role-based access control ensuring admin-only access
+
+**Suggested Future Enhancements:**
+- Add composite indexes on `activity_logs.user_id` and `created_at` for better performance
+- Extend activity log filtering (by action type, user, date range)
+- Add test coverage for course assignment and enrollment workflows
