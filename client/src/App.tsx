@@ -26,6 +26,7 @@ import SalesDashboard from "@/pages/sales/Dashboard";
 import SalesSchedules from "@/pages/sales/Schedules";
 import SalesEnrollStudent from "@/pages/sales/EnrollStudent";
 import SalesStudents from "@/pages/sales/Students";
+import SalesCourses from "@/pages/sales/Courses";
 
 // Trainer Pages
 import TrainerDashboard from "@/pages/trainer/Dashboard";
@@ -67,6 +68,7 @@ function SalesRoutes() {
   return (
     <Switch>
       <Route path="/" component={SalesDashboard} />
+      <Route path="/courses" component={SalesCourses} />
       <Route path="/enroll" component={SalesEnrollStudent} />
       <Route path="/students" component={SalesStudents} />
       <Route path="/schedules" component={SalesSchedules} />

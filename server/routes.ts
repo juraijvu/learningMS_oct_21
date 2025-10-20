@@ -718,6 +718,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Public: Get all courses (for all authenticated users)
+  app.get("/api/courses", isAuthenticated, async (req, res) => {
+    try {
+      const allCourses = await storage.getAllCourses();
+      res.json(allCourses);
+    } catch (error) {
+      console.error("Error fetching courses:", error);
+      res.status(500).json({ message: "Failed to fetch courses" });
+    }
+  });
+
   // Public: Get course by ID
   app.get("/api/courses/:courseId", isAuthenticated, async (req, res) => {
     try {

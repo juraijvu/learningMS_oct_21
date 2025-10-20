@@ -17,7 +17,7 @@ export default function EnrollStudent() {
   });
 
   const { data: courses, isLoading: loadingCourses } = useQuery<any[]>({
-    queryKey: ["/api/admin/courses"],
+    queryKey: ["/api/courses"],
   });
 
   if (loadingStudents || loadingCourses) {
