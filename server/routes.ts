@@ -2,9 +2,9 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated, hashPassword, verifyPassword } from "./auth";
-import { insertCourseSchema, insertModuleSchema, insertEnrollmentSchema, insertTaskSchema, insertScheduleSchema, insertQuerySchema, insertUserSchema, insertTrainerAssignmentSchema, insertClassMaterialSchema, classMaterials } from "@shared/schema";
+import { insertCourseSchema, insertModuleSchema, insertEnrollmentSchema, insertTaskSchema, insertScheduleSchema, insertQuerySchema, insertUserSchema, insertTrainerAssignmentSchema, insertClassMaterialSchema, insertAttendanceSchema, classMaterials } from "@shared/schema";
 import { db } from "./db";
-import { courses, modules, enrollments, users, trainerAssignments, moduleProgress, tasks, schedules, queries } from "@shared/schema";
+import { courses, modules, enrollments, users, trainerAssignments, moduleProgress, tasks, schedules, queries, attendance } from "@shared/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { z } from "zod";
 import multer from "multer";
@@ -447,6 +447,117 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Student: Mark module as complete
+  app.post("/api/student/progress/:moduleId/complete", isAuthenticated, requireRole(['student']), async (req: any, res) => {
+    try {
+      const { moduleId } = req.params;
+      const studentId = req.currentUser.id;
+      
+      const progressData = {
+        studentId,
+        moduleId,
+        isCompleted: true,
+        completedBy: studentId,
+      };
+      
+      const updatedProgress = await storage.updateModuleProgress(progressData);
+      res.json(updatedProgress);
+    } catch (error) {
+      console.error("Error marking module complete:", error);
+      res.status(500).json({ message: "Failed to mark module as complete" });
+    }
+  });
+
+  // Student: Get attendance
+  app.get("/api/student/attendance", isAuthenticated, requireRole(['student']), async (req: any, res) => {
+    try {
+      const studentId = req.currentUser.id;
+      const studentAttendance = await storage.getAttendanceByStudent(studentId);
+      
+      const attendanceWithDetails = await Promise.all(
+        studentAttendance.map(async (att) => {
+          const [schedule] = await db.select().from(schedules).where(eq(schedules.id, att.scheduleId));
+          const [course] = schedule ? await db.select().from(courses).where(eq(courses.id, schedule.courseId)) : [null];
+          const [trainer] = schedule?.trainerId ? await db.select().from(users).where(eq(users.id, schedule.trainerId)) : [null];
+          
+          return {
+            ...att,
+            courseTitle: course?.title || '',
+            trainerName: trainer ? `${trainer.firstName} ${trainer.lastName}` : 'TBA',
+            timeSlot: schedule?.timeSlot || '',
+            dayOfWeek: schedule?.dayOfWeek || 0,
+          };
+        })
+      );
+
+      res.json(attendanceWithDetails);
+    } catch (error) {
+      console.error("Error fetching student attendance:", error);
+      res.status(500).json({ message: "Failed to fetch attendance" });
+    }
+  });
+
+  // Student: Mark attendance
+  app.post("/api/student/attendance", isAuthenticated, requireRole(['student']), async (req: any, res) => {
+    try {
+      const studentId = req.currentUser.id;
+      const attendanceData = insertAttendanceSchema.parse({
+        ...req.body,
+        studentId,
+      });
+      
+      const attendance = await storage.createAttendance(attendanceData);
+      res.json(attendance);
+    } catch (error) {
+      console.error("Error marking attendance:", error);
+      res.status(500).json({ message: "Failed to mark attendance" });
+    }
+  });
+
+  // Trainer: Get attendance for verification
+  app.get("/api/trainer/attendance", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
+    try {
+      const trainerId = req.currentUser.id;
+      const trainerAttendance = await storage.getAttendanceByTrainer(trainerId);
+      
+      const attendanceWithDetails = await Promise.all(
+        trainerAttendance.map(async (att) => {
+          const [schedule] = await db.select().from(schedules).where(eq(schedules.id, att.scheduleId));
+          const [course] = schedule ? await db.select().from(courses).where(eq(courses.id, schedule.courseId)) : [null];
+          const [student] = await db.select().from(users).where(eq(users.id, att.studentId));
+          
+          return {
+            ...att,
+            courseTitle: course?.title || '',
+            studentName: student ? `${student.firstName} ${student.lastName}` : 'Unknown',
+            timeSlot: schedule?.timeSlot || '',
+            dayOfWeek: schedule?.dayOfWeek || 0,
+          };
+        })
+      );
+
+      res.json(attendanceWithDetails);
+    } catch (error) {
+      console.error("Error fetching trainer attendance:", error);
+      res.status(500).json({ message: "Failed to fetch attendance" });
+    }
+  });
+
+  // Trainer: Verify attendance
+  app.patch("/api/trainer/attendance/:id/verify", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { notes } = req.body;
+      const trainerId = req.currentUser.id;
+      
+      const verifiedAttendance = await storage.verifyAttendance(id, trainerId, notes);
+      res.json(verifiedAttendance);
+    } catch (error) {
+      console.error("Error verifying attendance:", error);
+      res.status(500).json({ message: "Failed to verify attendance" });
+    }
+  });
+
   // Student: Get tasks
   app.get("/api/student/tasks", isAuthenticated, requireRole(['student']), async (req: any, res) => {
     try {
@@ -658,6 +769,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching schedules:", error);
       res.status(500).json({ message: "Failed to fetch schedules" });
+    }
+  });
+
+  // Admin: Create schedule
+  app.post("/api/admin/schedules", isAuthenticated, requireRole(['admin']), async (req: any, res) => {
+    try {
+      const scheduleData = insertScheduleSchema.parse({
+        ...req.body,
+        createdBy: req.currentUser.id,
+      });
+      const schedule = await storage.createSchedule(scheduleData);
+      res.json(schedule);
+    } catch (error) {
+      console.error("Error creating schedule:", error);
+      res.status(500).json({ message: "Failed to create schedule" });
+    }
+  });
+
+  // Sales: Create schedule
+  app.post("/api/sales/schedules", isAuthenticated, requireRole(['sales_consultant']), async (req: any, res) => {
+    try {
+      const scheduleData = insertScheduleSchema.parse({
+        ...req.body,
+        createdBy: req.currentUser.id,
+      });
+      const schedule = await storage.createSchedule(scheduleData);
+      res.json(schedule);
+    } catch (error) {
+      console.error("Error creating schedule:", error);
+      res.status(500).json({ message: "Failed to create schedule" });
     }
   });
 
