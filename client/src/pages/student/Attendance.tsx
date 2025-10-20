@@ -145,7 +145,7 @@ export default function StudentAttendance() {
           <Button
             className="w-full"
             onClick={() => markAttendanceMutation.mutate()}
-            disabled={!selectedSchedule || !selectedDate || markAttendanceMutation.isPending}
+            disabled={!selectedSchedule || !selectedDate || !selectedStatus || markAttendanceMutation.isPending}
             data-testid="button-mark-attendance"
           >
             <CheckCircle className="h-4 w-4 mr-2" />
