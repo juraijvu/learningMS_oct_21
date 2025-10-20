@@ -51,22 +51,29 @@ export default function ManageCourses() {
   const assignTrainerMutation = useMutation({
     mutationFn: async (data: { trainerId: string; courseId: string }) => {
       const res = await apiRequest("POST", "/api/admin/assign-course-to-trainer", data);
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Failed to assign course to trainer");
+      }
       return await res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast({
         title: "Success",
-        description: "Course assigned to trainer successfully",
+        description: data.message || "Course assigned to trainer successfully",
       });
       setSelectedTrainer("");
       setSelectedCourseForTrainer("");
       queryClient.invalidateQueries({ queryKey: ["/api/admin/activity-logs"] });
     },
     onError: (error: any) => {
+      const message = error.message || "Failed to assign course to trainer";
+      const isAlreadyAssigned = message.toLowerCase().includes("already assigned");
+      
       toast({
-        title: "Error",
-        description: error.message || "Failed to assign course to trainer",
-        variant: "destructive",
+        title: isAlreadyAssigned ? "Already Assigned" : "Error",
+        description: message,
+        variant: isAlreadyAssigned ? "default" : "destructive",
       });
     },
   });
@@ -74,22 +81,29 @@ export default function ManageCourses() {
   const enrollStudentMutation = useMutation({
     mutationFn: async (data: { studentId: string; courseId: string }) => {
       const res = await apiRequest("POST", "/api/admin/enroll-student", data);
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Failed to enroll student");
+      }
       return await res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast({
         title: "Success",
-        description: "Student enrolled in course successfully",
+        description: data.message || "Student enrolled in course successfully",
       });
       setSelectedStudent("");
       setSelectedCourseForStudent("");
       queryClient.invalidateQueries({ queryKey: ["/api/admin/activity-logs"] });
     },
     onError: (error: any) => {
+      const message = error.message || "Failed to enroll student";
+      const isAlreadyEnrolled = message.toLowerCase().includes("already enrolled");
+      
       toast({
-        title: "Error",
-        description: error.message || "Failed to enroll student",
-        variant: "destructive",
+        title: isAlreadyEnrolled ? "Already Enrolled" : "Error",
+        description: message,
+        variant: isAlreadyEnrolled ? "default" : "destructive",
       });
     },
   });
