@@ -10,6 +10,7 @@ import { z } from "zod";
 import multer from "multer";
 import path from "path";
 import fs from "fs/promises";
+import { ActivityLogger } from "./activityLogger";
 
 // Role-based middleware
 const requireRole = (roles: string[]) => {
@@ -60,6 +61,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       req.session.userId = user.id;
+      
+      // Log login activity
+      await ActivityLogger.logLogin(user.id, req);
+      
       const { passwordHash, ...userWithoutPassword } = user;
       res.json(userWithoutPassword);
     } catch (error) {
@@ -71,7 +76,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/auth/logout', (req: any, res) => {
+  app.post('/api/auth/logout', async (req: any, res) => {
+    const userId = req.session?.userId;
+    
+    // Log logout activity before destroying session
+    if (userId) {
+      await ActivityLogger.logLogout(userId, req);
+    }
+    
     req.session.destroy((err: any) => {
       if (err) {
         return res.status(500).json({ message: "Logout failed" });
@@ -959,6 +971,222 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error cleaning up expired materials:", error);
       res.status(500).json({ message: "Failed to cleanup materials" });
+    }
+  });
+
+  // ==================== ADMIN ACTIVITY LOGS ====================
+  
+  // Get all activity logs (admin only)
+  app.get("/api/admin/activity-logs", isAuthenticated, requireRole(['admin']), async (req: any, res) => {
+    try {
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
+      const userId = req.query.userId as string | undefined;
+      const action = req.query.action as string | undefined;
+
+      let logs;
+      if (userId) {
+        logs = await storage.getActivityLogsByUser(userId, limit);
+      } else if (action) {
+        logs = await storage.getActivityLogsByAction(action, limit);
+      } else {
+        logs = await storage.getAllActivityLogs(limit);
+      }
+
+      // Fetch user details for each log
+      const logsWithUserDetails = await Promise.all(
+        logs.map(async (log) => {
+          const user = await storage.getUser(log.userId);
+          let targetUser = null;
+          if (log.targetUserId) {
+            targetUser = await storage.getUser(log.targetUserId);
+          }
+          
+          return {
+            ...log,
+            user: user ? {
+              id: user.id,
+              username: user.username,
+              firstName: user.firstName,
+              lastName: user.lastName,
+              role: user.role,
+            } : null,
+            targetUser: targetUser ? {
+              id: targetUser.id,
+              username: targetUser.username,
+              firstName: targetUser.firstName,
+              lastName: targetUser.lastName,
+              role: targetUser.role,
+            } : null,
+          };
+        })
+      );
+
+      res.json(logsWithUserDetails);
+    } catch (error) {
+      console.error("Error fetching activity logs:", error);
+      res.status(500).json({ message: "Failed to fetch activity logs" });
+    }
+  });
+
+  // ==================== ADMIN COURSE ASSIGNMENTS ====================
+  
+  // Admin: Assign course to trainer
+  app.post("/api/admin/assign-course-to-trainer", isAuthenticated, requireRole(['admin']), async (req: any, res) => {
+    try {
+      const assignSchema = z.object({
+        trainerId: z.string(),
+        courseId: z.string(),
+      });
+
+      const { trainerId, courseId } = assignSchema.parse(req.body);
+      const adminId = req.currentUser.id;
+
+      // Verify trainer exists and has trainer role
+      const trainer = await storage.getUser(trainerId);
+      if (!trainer || trainer.role !== 'trainer') {
+        return res.status(400).json({ message: "Invalid trainer ID" });
+      }
+
+      // Verify course exists
+      const course = await storage.getCourse(courseId);
+      if (!course) {
+        return res.status(404).json({ message: "Course not found" });
+      }
+
+      // Check if already assigned
+      const existingAssignments = await db
+        .select()
+        .from(trainerAssignments)
+        .where(and(
+          eq(trainerAssignments.trainerId, trainerId),
+          eq(trainerAssignments.courseId, courseId)
+        ));
+
+      if (existingAssignments.length > 0) {
+        return res.status(400).json({ message: "Trainer already assigned to this course" });
+      }
+
+      // Create assignment
+      const assignment = await storage.createTrainerAssignment({
+        trainerId,
+        courseId,
+        assignedBy: adminId,
+      });
+
+      // Log activity
+      await ActivityLogger.logCourseAssignedToTrainer(
+        adminId,
+        trainerId,
+        courseId,
+        course.title,
+        req
+      );
+
+      res.json({ 
+        message: `Course "${course.title}" assigned to trainer ${trainer.username}`,
+        assignment 
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid input", errors: error.errors });
+      }
+      console.error("Error assigning course to trainer:", error);
+      res.status(500).json({ message: "Failed to assign course to trainer" });
+    }
+  });
+
+  // Admin: Enroll student in course
+  app.post("/api/admin/enroll-student", isAuthenticated, requireRole(['admin', 'sales_consultant']), async (req: any, res) => {
+    try {
+      const enrollSchema = z.object({
+        studentId: z.string(),
+        courseId: z.string(),
+      });
+
+      const { studentId, courseId } = enrollSchema.parse(req.body);
+      const enrolledBy = req.currentUser.id;
+
+      // Verify student exists and has student role
+      const student = await storage.getUser(studentId);
+      if (!student || student.role !== 'student') {
+        return res.status(400).json({ message: "Invalid student ID" });
+      }
+
+      // Verify course exists
+      const course = await storage.getCourse(courseId);
+      if (!course) {
+        return res.status(404).json({ message: "Course not found" });
+      }
+
+      // Check if already enrolled
+      const existingEnrollments = await db
+        .select()
+        .from(enrollments)
+        .where(and(
+          eq(enrollments.studentId, studentId),
+          eq(enrollments.courseId, courseId)
+        ));
+
+      if (existingEnrollments.length > 0) {
+        return res.status(400).json({ message: "Student already enrolled in this course" });
+      }
+
+      // Create enrollment
+      const enrollment = await storage.createEnrollment({
+        studentId,
+        courseId,
+        enrolledBy,
+      });
+
+      // Log activity
+      await ActivityLogger.logStudentEnrolled(
+        enrolledBy,
+        studentId,
+        courseId,
+        course.title,
+        req
+      );
+
+      res.json({ 
+        message: `Student ${student.username} enrolled in course "${course.title}"`,
+        enrollment 
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid input", errors: error.errors });
+      }
+      console.error("Error enrolling student:", error);
+      res.status(500).json({ message: "Failed to enroll student" });
+    }
+  });
+
+  // Admin: Get all trainers
+  app.get("/api/admin/trainers", isAuthenticated, requireRole(['admin']), async (req: any, res) => {
+    try {
+      const allUsers = await storage.getAllUsers();
+      const trainers = allUsers.filter(u => u.role === 'trainer').map(u => {
+        const { passwordHash, ...userWithoutPassword } = u;
+        return userWithoutPassword;
+      });
+      res.json(trainers);
+    } catch (error) {
+      console.error("Error fetching trainers:", error);
+      res.status(500).json({ message: "Failed to fetch trainers" });
+    }
+  });
+
+  // Admin: Get all students
+  app.get("/api/admin/students", isAuthenticated, requireRole(['admin', 'sales_consultant']), async (req: any, res) => {
+    try {
+      const allUsers = await storage.getAllUsers();
+      const students = allUsers.filter(u => u.role === 'student').map(u => {
+        const { passwordHash, ...userWithoutPassword } = u;
+        return userWithoutPassword;
+      });
+      res.json(students);
+    } catch (error) {
+      console.error("Error fetching students:", error);
+      res.status(500).json({ message: "Failed to fetch students" });
     }
   });
 

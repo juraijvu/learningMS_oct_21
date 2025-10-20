@@ -157,6 +157,23 @@ export const materialAssignments = pgTable("material_assignments", {
   assignedAt: timestamp("assigned_at").defaultNow().notNull(),
 });
 
+// Activity logs for tracking all user actions
+export const activityLogs = pgTable("activity_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  action: varchar("action", { length: 100 }).notNull(), // e.g., 'login', 'logout', 'course_assigned', 'student_enrolled', 'material_uploaded', etc.
+  entityType: varchar("entity_type", { length: 50 }), // e.g., 'course', 'user', 'material', 'task', etc.
+  entityId: varchar("entity_id"), // ID of the affected entity
+  targetUserId: varchar("target_user_id").references(() => users.id, { onDelete: 'set null' }), // User affected by the action (e.g., student being enrolled)
+  details: jsonb("details"), // Additional context as JSON
+  ipAddress: varchar("ip_address", { length: 45 }), // Support both IPv4 and IPv6
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_activity_user").on(table.userId),
+  index("idx_activity_action").on(table.action),
+  index("idx_activity_created").on(table.createdAt),
+]);
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   enrollments: many(enrollments),
@@ -261,6 +278,17 @@ export const materialAssignmentsRelations = relations(materialAssignments, ({ on
   }),
 }));
 
+export const activityLogsRelations = relations(activityLogs, ({ one }) => ({
+  user: one(users, {
+    fields: [activityLogs.userId],
+    references: [users.id],
+  }),
+  targetUser: one(users, {
+    fields: [activityLogs.targetUserId],
+    references: [users.id],
+  }),
+}));
+
 // Type exports
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
@@ -297,6 +325,9 @@ export type ClassMaterial = typeof classMaterials.$inferSelect;
 
 export type InsertMaterialAssignment = typeof materialAssignments.$inferInsert;
 export type MaterialAssignment = typeof materialAssignments.$inferSelect;
+
+export type InsertActivityLog = typeof activityLogs.$inferInsert;
+export type ActivityLog = typeof activityLogs.$inferSelect;
 
 // Insert schemas for validation
 export const insertUserSchema = createInsertSchema(users).omit({
@@ -356,4 +387,9 @@ export const insertClassMaterialSchema = createInsertSchema(classMaterials).omit
 export const insertMaterialAssignmentSchema = createInsertSchema(materialAssignments).omit({
   id: true,
   assignedAt: true,
+});
+
+export const insertActivityLogSchema = createInsertSchema(activityLogs).omit({
+  id: true,
+  createdAt: true,
 });

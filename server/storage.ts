@@ -12,6 +12,7 @@ import {
   relatedCourses,
   classMaterials,
   materialAssignments,
+  activityLogs,
   type User,
   type UpsertUser,
   type Course,
@@ -34,6 +35,8 @@ import {
   type InsertClassMaterial,
   type MaterialAssignment,
   type InsertMaterialAssignment,
+  type ActivityLog,
+  type InsertActivityLog,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql } from "drizzle-orm";
@@ -94,6 +97,12 @@ export interface IStorage {
   assignMaterialToStudent(materialId: string, studentId: string): Promise<MaterialAssignment>;
   getStudentMaterials(studentId: string): Promise<ClassMaterial[]>;
   getMaterialAssignments(materialId: string): Promise<MaterialAssignment[]>;
+  
+  // Activity log operations
+  createActivityLog(log: InsertActivityLog): Promise<ActivityLog>;
+  getAllActivityLogs(limit?: number): Promise<ActivityLog[]>;
+  getActivityLogsByUser(userId: string, limit?: number): Promise<ActivityLog[]>;
+  getActivityLogsByAction(action: string, limit?: number): Promise<ActivityLog[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -394,6 +403,41 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(materialAssignments)
       .where(eq(materialAssignments.materialId, materialId));
+  }
+
+  // Activity log operations
+  async createActivityLog(logData: InsertActivityLog): Promise<ActivityLog> {
+    const [log] = await db
+      .insert(activityLogs)
+      .values(logData)
+      .returning();
+    return log;
+  }
+
+  async getAllActivityLogs(limit: number = 100): Promise<ActivityLog[]> {
+    return await db
+      .select()
+      .from(activityLogs)
+      .orderBy(desc(activityLogs.createdAt))
+      .limit(limit);
+  }
+
+  async getActivityLogsByUser(userId: string, limit: number = 100): Promise<ActivityLog[]> {
+    return await db
+      .select()
+      .from(activityLogs)
+      .where(eq(activityLogs.userId, userId))
+      .orderBy(desc(activityLogs.createdAt))
+      .limit(limit);
+  }
+
+  async getActivityLogsByAction(action: string, limit: number = 100): Promise<ActivityLog[]> {
+    return await db
+      .select()
+      .from(activityLogs)
+      .where(eq(activityLogs.action, action))
+      .orderBy(desc(activityLogs.createdAt))
+      .limit(limit);
   }
 }
 

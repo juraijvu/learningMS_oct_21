@@ -18,6 +18,8 @@ import AdminCourses from "@/pages/admin/Courses";
 import AdminSchedules from "@/pages/admin/Schedules";
 import AdminCourseModules from "@/pages/admin/CourseModules";
 import AdminAssignTrainers from "@/pages/admin/AssignTrainers";
+import AdminActivityLogs from "@/pages/admin/ActivityLogs";
+import AdminManageCourses from "@/pages/admin/ManageCourses";
 
 // Sales Pages
 import SalesDashboard from "@/pages/sales/Dashboard";
@@ -53,6 +55,8 @@ function AdminRoutes() {
       <Route path="/courses" component={AdminCourses} />
       <Route path="/courses/:courseId/modules" component={AdminCourseModules} />
       <Route path="/courses/:courseId/assign" component={AdminAssignTrainers} />
+      <Route path="/manage-courses" component={AdminManageCourses} />
+      <Route path="/activity-logs" component={AdminActivityLogs} />
       <Route path="/schedules" component={AdminSchedules} />
       <Route component={NotFound} />
     </Switch>

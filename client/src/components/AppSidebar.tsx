@@ -7,7 +7,9 @@ import {
   UserPlus,
   GraduationCap,
   MessageSquare,
-  FileText
+  FileText,
+  Activity,
+  Settings
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
@@ -34,6 +36,8 @@ const menuItems = {
     { title: "Dashboard", url: "/", icon: LayoutDashboard, testId: "link-admin-dashboard" },
     { title: "Users", url: "/users", icon: Users, testId: "link-admin-users" },
     { title: "Courses", url: "/courses", icon: BookOpen, testId: "link-admin-courses" },
+    { title: "Manage Courses", url: "/manage-courses", icon: Settings, testId: "link-admin-manage-courses" },
+    { title: "Activity Logs", url: "/activity-logs", icon: Activity, testId: "link-admin-activity-logs" },
     { title: "Schedules", url: "/schedules", icon: Calendar, testId: "link-admin-schedules" },
   ],
   sales_consultant: [
