@@ -187,3 +187,8 @@
 [x] 187. Verified student portal already filters related courses by category
 [x] 188. Confirmed category-based enrollment request system is working
 [x] 189. ✅ CATEGORY DROPDOWN ADDED TO COURSE CREATION - READY FOR TESTING ✅
+[x] 190. Fixed demo credentials login issue - users were not seeded in database
+[x] 191. Ran database seed script (npx tsx server/seed.ts)
+[x] 192. Successfully created all 4 demo users (admin, trainer1, sales1, student1)
+[x] 193. Verified demo credentials are now working and ready for login
+[x] 194. ✅ DEMO CREDENTIALS FIXED AND WORKING - LOGIN NOW FUNCTIONAL ✅
