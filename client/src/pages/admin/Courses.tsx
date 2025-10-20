@@ -6,15 +6,30 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, BookOpen, FileText } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus, BookOpen, FileText, Tag } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 import type { Course } from "@shared/schema";
+
+const COURSE_CATEGORIES = [
+  "Programming",
+  "Web Development",
+  "Data Science",
+  "Design",
+  "Business",
+  "Marketing",
+  "Photography",
+  "Music",
+  "Language",
+  "Other"
+];
 
 export default function CoursesManagement() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [newCourse, setNewCourse] = useState({ title: "", description: "", pdfUrl: "" });
+  const [newCourse, setNewCourse] = useState({ title: "", description: "", category: "", pdfUrl: "" });
   const { toast } = useToast();
 
   const { data: courses, isLoading } = useQuery<Course[]>({
@@ -27,9 +42,10 @@ export default function CoursesManagement() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/courses"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/courses"] });
       toast({ title: "Success", description: "Course created successfully" });
       setIsDialogOpen(false);
-      setNewCourse({ title: "", description: "", pdfUrl: "" });
+      setNewCourse({ title: "", description: "", category: "", pdfUrl: "" });
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -96,6 +112,24 @@ export default function CoursesManagement() {
                 />
               </div>
               <div className="space-y-2">
+                <Label htmlFor="category">Category</Label>
+                <Select
+                  value={newCourse.category}
+                  onValueChange={(value) => setNewCourse({ ...newCourse, category: value })}
+                >
+                  <SelectTrigger data-testid="select-course-category">
+                    <SelectValue placeholder="Select a category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COURSE_CATEGORIES.map((category) => (
+                      <SelectItem key={category} value={category} data-testid={`option-category-${category}`}>
+                        {category}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="pdfUrl">Course PDF URL (Optional)</Label>
                 <Input
                   id="pdfUrl"
@@ -137,6 +171,12 @@ export default function CoursesManagement() {
                   </div>
                   <div className="flex-1">
                     <CardTitle className="text-lg">{course.title}</CardTitle>
+                    {course.category && (
+                      <Badge variant="secondary" className="mt-1">
+                        <Tag className="h-3 w-3 mr-1" />
+                        {course.category}
+                      </Badge>
+                    )}
                     <CardDescription className="mt-2 line-clamp-2">
                       {course.description}
                     </CardDescription>
