@@ -141,3 +141,12 @@
 [x] 141. Fixed CreateSchedule back button link from /sales/schedules to /schedules
 [x] 142. Fixed Schedules create button link from /sales/schedules/create to /schedules/create
 [x] 143. All sales schedule pages now accessible with correct URLs
+[x] 144. Fixed sales Students page disappearing issue - updated to use /api/admin/students endpoint
+[x] 145. Fixed empty student and trainer dropdowns in Create Schedule page
+[x] 146. Updated /api/admin/trainers endpoint to allow sales_consultant role access
+[x] 147. Updated sales CreateSchedule to use separate queries for students and trainers
+[x] 148. Replaced anchor tags with wouter Link components to prevent 404 flash on navigation
+[x] 149. Fixed temporary "not found" message appearing before page loads
+[x] 150. All sales portal endpoints tested and verified working correctly
+[x] 151. Architect review completed - no security concerns or regressions found
+[x] 152. All sales portal issues resolved successfully
