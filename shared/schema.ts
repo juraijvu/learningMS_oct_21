@@ -406,6 +406,8 @@ export const insertTaskSchema = createInsertSchema(tasks).omit({
 export const insertScheduleSchema = createInsertSchema(schedules).omit({
   id: true,
   createdAt: true,
+}).extend({
+  weekStart: z.coerce.date(),
 });
 
 export const insertQuerySchema = createInsertSchema(queries).omit({

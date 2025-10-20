@@ -150,3 +150,7 @@
 [x] 150. All sales portal endpoints tested and verified working correctly
 [x] 151. Architect review completed - no security concerns or regressions found
 [x] 152. All sales portal issues resolved successfully
+[x] 153. Fixed schedule creation validation error - weekStart field expecting date instead of string
+[x] 154. Updated insertScheduleSchema to use z.coerce.date() for weekStart field
+[x] 155. Tested schedule creation successfully - converts date strings to Date objects
+[x] 156. Schedule creation now working for all user roles (admin and sales)
