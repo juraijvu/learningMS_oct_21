@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar, Clock, User, GraduationCap, Plus } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -48,10 +49,10 @@ export default function SalesSchedules() {
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-semibold" data-testid="text-schedules-title">All Schedules</h1>
         <Button asChild data-testid="button-create-schedule">
-          <a href="/schedules/create">
+          <Link href="/schedules/create">
             <Plus className="h-4 w-4 mr-2" />
             Create Schedule
-          </a>
+          </Link>
         </Button>
       </div>
 

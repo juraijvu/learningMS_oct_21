@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -94,9 +95,9 @@ export default function SalesCreateSchedule() {
     <div className="p-6 space-y-6">
       <div className="flex items-center gap-4">
         <Button variant="outline" size="icon" asChild>
-          <a href="/schedules" data-testid="button-back">
+          <Link href="/schedules" data-testid="button-back">
             <ArrowLeft className="h-4 w-4" />
-          </a>
+          </Link>
         </Button>
         <div>
           <h1 className="text-3xl font-semibold">Create Schedule</h1>
