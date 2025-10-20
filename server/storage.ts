@@ -13,6 +13,7 @@ import {
   classMaterials,
   materialAssignments,
   activityLogs,
+  attendance,
   type User,
   type UpsertUser,
   type Course,
@@ -37,6 +38,8 @@ import {
   type InsertMaterialAssignment,
   type ActivityLog,
   type InsertActivityLog,
+  type Attendance,
+  type InsertAttendance,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql } from "drizzle-orm";
@@ -103,6 +106,13 @@ export interface IStorage {
   getAllActivityLogs(limit?: number): Promise<ActivityLog[]>;
   getActivityLogsByUser(userId: string, limit?: number): Promise<ActivityLog[]>;
   getActivityLogsByAction(action: string, limit?: number): Promise<ActivityLog[]>;
+  
+  // Attendance operations
+  createAttendance(attendance: InsertAttendance): Promise<Attendance>;
+  getAttendanceByStudent(studentId: string): Promise<Attendance[]>;
+  getAttendanceByTrainer(trainerId: string): Promise<Attendance[]>;
+  getAttendanceBySchedule(scheduleId: string): Promise<Attendance[]>;
+  verifyAttendance(id: string, trainerId: string, notes?: string): Promise<Attendance>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -438,6 +448,60 @@ export class DatabaseStorage implements IStorage {
       .where(eq(activityLogs.action, action))
       .orderBy(desc(activityLogs.createdAt))
       .limit(limit);
+  }
+
+  // Attendance operations
+  async createAttendance(attendanceData: InsertAttendance): Promise<Attendance> {
+    const [result] = await db
+      .insert(attendance)
+      .values(attendanceData)
+      .returning();
+    return result;
+  }
+
+  async getAttendanceByStudent(studentId: string): Promise<Attendance[]> {
+    return await db
+      .select()
+      .from(attendance)
+      .where(eq(attendance.studentId, studentId))
+      .orderBy(desc(attendance.date));
+  }
+
+  async getAttendanceByTrainer(trainerId: string): Promise<Attendance[]> {
+    const trainerSchedules = await db
+      .select()
+      .from(schedules)
+      .where(eq(schedules.trainerId, trainerId));
+    
+    if (trainerSchedules.length === 0) return [];
+    
+    const scheduleIds = trainerSchedules.map(s => s.id);
+    return await db
+      .select()
+      .from(attendance)
+      .where(sql`${attendance.scheduleId} = ANY(${scheduleIds})`)
+      .orderBy(desc(attendance.date));
+  }
+
+  async getAttendanceBySchedule(scheduleId: string): Promise<Attendance[]> {
+    return await db
+      .select()
+      .from(attendance)
+      .where(eq(attendance.scheduleId, scheduleId))
+      .orderBy(desc(attendance.date));
+  }
+
+  async verifyAttendance(id: string, trainerId: string, notes?: string): Promise<Attendance> {
+    const [result] = await db
+      .update(attendance)
+      .set({
+        verifiedBy: trainerId,
+        verifiedAt: new Date(),
+        notes: notes,
+      })
+      .where(eq(attendance.id, id))
+      .returning();
+    return result;
   }
 }
 
