@@ -2,10 +2,12 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, XCircle, Clock, User, BookOpen } from "lucide-react";
+import { CheckCircle, XCircle, Clock, User, BookOpen, Phone } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
+import { PageLayout } from "@/components/PageLayout";
 import {
   Table,
   TableBody,
@@ -27,6 +29,10 @@ interface EnrollmentRequest {
     id: string;
     username: string;
     email?: string;
+    firstName?: string;
+    lastName?: string;
+    phoneNumber?: string;
+    profileImageUrl?: string;
   };
   course?: {
     id: string;
@@ -122,48 +128,57 @@ export default function EnrollmentRequests() {
   const processedRequests = requests?.filter(r => r.status !== "pending") || [];
 
   return (
-    <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-3xl font-semibold" data-testid="text-enrollment-requests-title">
-          Enrollment Requests
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          Review and manage student enrollment requests
-        </p>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Requests</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
+    <PageLayout 
+      title="Enrollment Requests" 
+      subtitle="Review and manage student enrollment requests"
+    >
+      <div className="grid gap-6 md:grid-cols-3" data-testid="text-enrollment-requests-title">
+        <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-xl rounded-2xl overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-orange-600 to-orange-700 text-white">
+            <CardTitle className="flex items-center gap-3 text-lg font-bold">
+              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                <Clock className="h-5 w-5" />
+              </div>
+              Pending Requests
+            </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{pendingRequests.length}</div>
+          <CardContent className="p-6">
+            <div className="text-3xl font-bold text-orange-600">{pendingRequests.length}</div>
+            <p className="text-orange-500 text-sm font-medium mt-1">Awaiting review</p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Approved</CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-600" />
+        <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-xl rounded-2xl overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-green-600 to-green-700 text-white">
+            <CardTitle className="flex items-center gap-3 text-lg font-bold">
+              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                <CheckCircle className="h-5 w-5" />
+              </div>
+              Approved
+            </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
+          <CardContent className="p-6">
+            <div className="text-3xl font-bold text-green-600">
               {requests?.filter(r => r.status === "approved").length || 0}
             </div>
+            <p className="text-green-500 text-sm font-medium mt-1">Successfully enrolled</p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Rejected</CardTitle>
-            <XCircle className="h-4 w-4 text-red-600" />
+        <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-xl rounded-2xl overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-red-600 to-red-700 text-white">
+            <CardTitle className="flex items-center gap-3 text-lg font-bold">
+              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                <XCircle className="h-5 w-5" />
+              </div>
+              Rejected
+            </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
+          <CardContent className="p-6">
+            <div className="text-3xl font-bold text-red-600">
               {requests?.filter(r => r.status === "rejected").length || 0}
             </div>
+            <p className="text-red-500 text-sm font-medium mt-1">Declined requests</p>
           </CardContent>
         </Card>
       </div>
@@ -181,6 +196,7 @@ export default function EnrollmentRequests() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Student</TableHead>
+                  <TableHead>Contact</TableHead>
                   <TableHead>Course</TableHead>
                   <TableHead>Message</TableHead>
                   <TableHead>Date</TableHead>
@@ -191,14 +207,39 @@ export default function EnrollmentRequests() {
                 {pendingRequests.map((request) => (
                   <TableRow key={request.id} data-testid={`row-request-${request.id}`}>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <User className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <div className="font-medium">{request.student?.username}</div>
-                          {request.student?.email && (
-                            <div className="text-xs text-muted-foreground">{request.student.email}</div>
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-10 w-10">
+                          {request.student?.profileImageUrl && (
+                            <AvatarImage src={request.student.profileImageUrl} alt={request.student.username} />
                           )}
+                          <AvatarFallback className="bg-blue-100 text-blue-600">
+                            {request.student?.firstName?.[0]}{request.student?.lastName?.[0]} 
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <div className="font-medium">
+                            {request.student?.firstName} {request.student?.lastName}
+                          </div>
+                          <div className="text-xs text-muted-foreground">@{request.student?.username}</div>
                         </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-1">
+                        {request.student?.email && (
+                          <div className="text-sm text-muted-foreground">{request.student.email}</div>
+                        )}
+                        {request.student?.phoneNumber && (
+                          <div className="flex items-center gap-1 text-sm text-green-600">
+                            <Phone className="h-3 w-3" />
+                            <a href={`tel:${request.student.phoneNumber}`} className="hover:underline">
+                              {request.student.phoneNumber}
+                            </a>
+                          </div>
+                        )}
+                        {!request.student?.phoneNumber && (
+                          <div className="text-xs text-red-500">No phone number</div>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -311,6 +352,6 @@ export default function EnrollmentRequests() {
           </CardContent>
         </Card>
       )}
-    </div>
+    </PageLayout>
   );
 }

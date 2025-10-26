@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { BookOpen, Clock } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PageLayout } from "@/components/PageLayout";
 
 type Course = {
   id: string;
@@ -20,32 +21,36 @@ export default function SalesCourses() {
 
   if (isLoading) {
     return (
-      <div className="p-6 space-y-6">
-        <Skeleton className="h-9 w-64" />
+      <PageLayout title="Available Courses" subtitle="Browse all available courses to enroll students">
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {[...Array(6)].map((_, i) => (
-            <Skeleton key={i} className="h-64 w-full" />
+            <Card key={i} className="bg-white/90 backdrop-blur-sm border-0 shadow-xl rounded-2xl overflow-hidden">
+              <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+                <Skeleton className="h-6 w-3/4 bg-white/20" />
+              </CardHeader>
+              <CardContent className="p-6">
+                <Skeleton className="h-32 w-full" />
+              </CardContent>
+            </Card>
           ))}
         </div>
-      </div>
+      </PageLayout>
     );
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-3xl font-semibold">Available Courses</h1>
-        <p className="text-muted-foreground mt-2">
-          Browse all available courses to enroll students
-        </p>
-      </div>
-
+    <PageLayout 
+      title="Available Courses" 
+      subtitle="Browse all available courses to enroll students"
+    >
       {courses && courses.length === 0 ? (
-        <Card>
+        <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-xl rounded-2xl overflow-hidden">
           <CardContent className="flex flex-col items-center justify-center py-12">
-            <BookOpen className="h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-lg font-medium">No courses available</p>
-            <p className="text-sm text-muted-foreground">
+            <div className="w-20 h-20 bg-blue-100 rounded-2xl flex items-center justify-center mb-4">
+              <BookOpen className="h-10 w-10 text-blue-600" />
+            </div>
+            <p className="text-lg font-bold text-blue-900 mb-2">No courses available</p>
+            <p className="text-sm text-blue-600">
               Check back later for new courses
             </p>
           </CardContent>
@@ -53,31 +58,33 @@ export default function SalesCourses() {
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {courses?.map((course) => (
-            <Card key={course.id} className="hover:shadow-lg transition-shadow" data-testid={`card-course-${course.id}`}>
-              <CardHeader>
+            <Card key={course.id} className="bg-white/90 backdrop-blur-sm border-0 shadow-xl rounded-2xl overflow-hidden hover:shadow-2xl transition-all duration-300" data-testid={`card-course-${course.id}`}>
+              <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
                 <div className="flex items-start justify-between">
-                  <BookOpen className="h-8 w-8 text-primary" />
-                  <Badge variant="outline" data-testid={`badge-level-${course.id}`}>
+                  <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                    <BookOpen className="h-6 w-6" />
+                  </div>
+                  <Badge className="bg-white/20 text-white border-white/30" data-testid={`badge-level-${course.id}`}>
                     {course.level}
                   </Badge>
                 </div>
-                <CardTitle className="mt-4" data-testid={`title-course-${course.id}`}>
+                <CardTitle className="mt-4 text-white" data-testid={`title-course-${course.id}`}>
                   {course.title}
                 </CardTitle>
-                <CardDescription data-testid={`description-course-${course.id}`}>
+                <CardDescription className="text-blue-100" data-testid={`description-course-${course.id}`}>
                   {course.description}
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Clock className="h-4 w-4" />
-                  <span data-testid={`duration-course-${course.id}`}>{course.duration}</span>
+              <CardContent className="p-6">
+                <div className="flex items-center gap-2 text-sm bg-blue-50 p-3 rounded-xl">
+                  <Clock className="h-4 w-4 text-blue-600" />
+                  <span className="text-blue-700 font-medium" data-testid={`duration-course-${course.id}`}>{course.duration}</span>
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
       )}
-    </div>
+    </PageLayout>
   );
 }

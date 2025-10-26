@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Download, FileText, Video, Calendar, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { PageLayout } from "@/components/PageLayout";
 import type { ClassMaterial } from "@shared/schema";
 
 export default function StudentMaterials() {
@@ -30,20 +31,24 @@ export default function StudentMaterials() {
   };
 
   if (isLoading) {
-    return <div className="p-8" data-testid="loading-materials">Loading materials...</div>;
+    return (
+      <PageLayout title="Class Materials" subtitle="Access your assigned course materials and resources">
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-blue-600">Loading materials...</p>
+        </div>
+      </PageLayout>
+    );
   }
 
   const activeMaterials = materials?.filter(m => daysUntilExpiry(m.expiresAt) > 0) || [];
   const expiredMaterials = materials?.filter(m => daysUntilExpiry(m.expiresAt) <= 0) || [];
 
   return (
-    <div className="p-8" data-testid="student-materials-page">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold" data-testid="page-title">Class Materials</h1>
-        <p className="text-muted-foreground mt-1">
-          Access your assigned course materials and resources
-        </p>
-      </div>
+    <PageLayout 
+      title="Class Materials" 
+      subtitle="Access your assigned course materials and resources"
+    >
 
       {activeMaterials.length === 0 && expiredMaterials.length === 0 && (
         <Card>
@@ -161,6 +166,6 @@ export default function StudentMaterials() {
           </div>
         </div>
       )}
-    </div>
+    </PageLayout>
   );
 }

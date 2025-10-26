@@ -10,6 +10,7 @@ import { ClipboardList, Upload, CheckCircle, Clock, AlertCircle } from "lucide-r
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PageLayout } from "@/components/PageLayout";
 import type { Task } from "@shared/schema";
 
 const statusConfig = {
@@ -56,21 +57,21 @@ export default function StudentTasks() {
 
   if (isLoading) {
     return (
-      <div className="p-6 space-y-6">
-        <Skeleton className="h-9 w-48" />
-        <Card>
+      <PageLayout title="My Tasks" subtitle="Submit assignments and track your progress">
+        <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-xl rounded-2xl overflow-hidden">
           <CardContent className="p-6">
             <Skeleton className="h-40 w-full" />
           </CardContent>
         </Card>
-      </div>
+      </PageLayout>
     );
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <h1 className="text-3xl font-semibold" data-testid="text-my-tasks-title">My Tasks</h1>
-
+    <PageLayout 
+      title="My Tasks" 
+      subtitle="Submit assignments and track your progress"
+    >
       <Tabs defaultValue="pending" className="w-full">
         <TabsList>
           <TabsTrigger value="pending" data-testid="tab-pending-tasks">
@@ -225,6 +226,6 @@ export default function StudentTasks() {
           )}
         </TabsContent>
       </Tabs>
-    </div>
+    </PageLayout>
   );
 }

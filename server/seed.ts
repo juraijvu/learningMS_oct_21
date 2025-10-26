@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { users } from "@shared/schema";
 import { hashPassword } from "./auth";
-
+import 'dotenv/config';
 async function seed() {
   console.log("Starting database seeding...");
 

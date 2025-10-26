@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar, Clock, GraduationCap } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PageLayout } from "@/components/PageLayout";
 
 interface ScheduleItem {
   id: string;
@@ -21,14 +22,16 @@ export default function TrainerSchedules() {
 
   if (isLoading) {
     return (
-      <div className="p-6 space-y-6">
-        <Skeleton className="h-9 w-48" />
-        <Card>
+      <PageLayout title="My Schedule" subtitle="View your weekly class schedule">
+        <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-xl rounded-2xl overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+            <Skeleton className="h-6 w-48 bg-white/20" />
+          </CardHeader>
           <CardContent className="p-6">
             <Skeleton className="h-60 w-full" />
           </CardContent>
         </Card>
-      </div>
+      </PageLayout>
     );
   }
 
@@ -42,21 +45,27 @@ export default function TrainerSchedules() {
   }, {} as Record<string, ScheduleItem[]>) || {};
 
   return (
-    <div className="p-6 space-y-6">
-      <h1 className="text-3xl font-semibold" data-testid="text-schedule-title">My Schedule</h1>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="h-5 w-5" />
+    <PageLayout 
+      title="My Schedule" 
+      subtitle="View your weekly class schedule"
+    >
+      <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-xl rounded-2xl overflow-hidden">
+        <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+          <CardTitle className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+              <Calendar className="h-5 w-5" />
+            </div>
             This Week's Classes
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-6">
           {Object.keys(schedulesByDay).length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12">
-              <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">No classes scheduled for this week</p>
+              <div className="w-20 h-20 bg-blue-100 rounded-2xl flex items-center justify-center mb-4">
+                <Calendar className="h-10 w-10 text-blue-600" />
+              </div>
+              <p className="text-blue-700 font-medium text-lg">No classes scheduled for this week</p>
+              <p className="text-sm text-blue-500 mt-1">Your weekly schedule will appear here</p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -65,25 +74,27 @@ export default function TrainerSchedules() {
                 if (daySchedules.length === 0) return null;
 
                 return (
-                  <div key={day} className="border rounded-lg p-4">
-                    <h3 className="font-semibold mb-3">{day}</h3>
-                    <div className="space-y-2">
+                  <div key={day} className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4">
+                    <h3 className="font-bold text-blue-900 mb-3 text-lg">{day}</h3>
+                    <div className="space-y-3">
                       {daySchedules.map((schedule) => (
                         <div
                           key={schedule.id}
-                          className="flex items-center justify-between p-3 rounded-lg bg-muted"
+                          className="flex items-center justify-between p-4 rounded-xl bg-white border border-blue-200 hover:shadow-md transition-all duration-300"
                           data-testid={`schedule-${schedule.id}`}
                         >
                           <div className="flex-1 space-y-1">
-                            <p className="font-medium">{schedule.courseTitle}</p>
-                            <p className="text-sm text-muted-foreground flex items-center gap-1">
-                              <GraduationCap className="h-3 w-3" />
+                            <p className="font-bold text-blue-900">{schedule.courseTitle}</p>
+                            <p className="text-sm text-blue-600 flex items-center gap-2">
+                              <div className="w-5 h-5 bg-blue-100 rounded-lg flex items-center justify-center">
+                                <GraduationCap className="h-3 w-3 text-blue-600" />
+                              </div>
                               Student: {schedule.studentName}
                             </p>
                           </div>
-                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                            <Clock className="h-4 w-4" />
-                            {schedule.timeSlot}
+                          <div className="flex items-center gap-2 text-sm bg-blue-100 px-3 py-2 rounded-xl">
+                            <Clock className="h-4 w-4 text-blue-600" />
+                            <span className="font-medium text-blue-700">{schedule.timeSlot}</span>
                           </div>
                         </div>
                       ))}
@@ -95,6 +106,6 @@ export default function TrainerSchedules() {
           )}
         </CardContent>
       </Card>
-    </div>
+    </PageLayout>
   );
 }

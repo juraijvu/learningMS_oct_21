@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { MessageSquare, CheckCircle, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PageLayout } from "@/components/PageLayout";
 import type { Query } from "@shared/schema";
 
 interface QueryWithModule extends Query {
@@ -28,8 +29,14 @@ export default function StudentQueries() {
 
   const { data: availableModules } = useQuery<{ id: string; title: string; courseTitle: string }[]>({
     queryKey: ["/api/student/modules"],
-    onSuccess: (data) => setModules(data || []),
   });
+
+  // Update modules when data changes
+  React.useEffect(() => {
+    if (availableModules) {
+      setModules(availableModules);
+    }
+  }, [availableModules]);
 
   const createQueryMutation = useMutation({
     mutationFn: async (queryData: typeof newQuery) => {
@@ -47,14 +54,16 @@ export default function StudentQueries() {
 
   if (isLoading) {
     return (
-      <div className="p-6 space-y-6">
-        <Skeleton className="h-9 w-48" />
-        <Card>
+      <PageLayout title="My Queries" subtitle="Ask questions and get help from your trainers">
+        <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-xl rounded-2xl overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+            <Skeleton className="h-6 w-48 bg-white/20" />
+          </CardHeader>
           <CardContent className="p-6">
             <Skeleton className="h-40 w-full" />
           </CardContent>
         </Card>
-      </div>
+      </PageLayout>
     );
   }
 
@@ -62,12 +71,18 @@ export default function StudentQueries() {
   const resolvedQueries = queries?.filter(q => q.isResolved) || [];
 
   return (
-    <div className="p-6 space-y-6">
-      <h1 className="text-3xl font-semibold" data-testid="text-queries-title">My Queries</h1>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Submit a Query</CardTitle>
+    <PageLayout 
+      title="My Queries" 
+      subtitle="Ask questions and get help from your trainers"
+    >
+      <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-xl rounded-2xl overflow-hidden mb-6">
+        <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+          <CardTitle className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+              <MessageSquare className="h-5 w-5" />
+            </div>
+            Submit a Query
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
@@ -79,7 +94,7 @@ export default function StudentQueries() {
               <SelectContent>
                 {modules?.map((module) => (
                   <SelectItem key={module.id} value={module.id}>
-                    {module.title}
+                    {module.courseTitle} - {module.title}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -190,6 +205,6 @@ export default function StudentQueries() {
           )}
         </div>
       </div>
-    </div>
+    </PageLayout>
   );
 }

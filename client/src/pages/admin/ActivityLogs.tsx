@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Activity, User, Clock, FileText } from "lucide-react";
+import { Activity, User, Clock, FileText, TrendingUp } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { PageLayout } from "@/components/PageLayout";
 
 type ActivityLog = {
   id: string;
@@ -77,70 +78,117 @@ export default function ActivityLogs() {
   });
 
   return (
-    <div className="container mx-auto p-6 space-y-6" data-testid="page-activity-logs">
-      <div className="flex items-center gap-3">
-        <Activity className="h-8 w-8 text-primary" />
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100" data-testid="heading-activity-logs">
-            Activity Logs
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Monitor all user activities across the platform
-          </p>
-        </div>
+    <PageLayout 
+      title="Activity Logs" 
+      subtitle="Monitor all user activities across the platform"
+    >
+      <div className="grid gap-6 md:grid-cols-3 mb-6">
+        <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-xl rounded-2xl overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+            <CardTitle className="flex items-center gap-3 text-lg font-bold">
+              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                <Activity className="h-5 w-5" />
+              </div>
+              Total Activities
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="text-3xl font-bold text-blue-600">{logs?.length || 0}</div>
+            <p className="text-blue-500 text-sm font-medium mt-1">All time activities</p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-xl rounded-2xl overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-green-600 to-green-700 text-white">
+            <CardTitle className="flex items-center gap-3 text-lg font-bold">
+              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                <User className="h-5 w-5" />
+              </div>
+              Active Users
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="text-3xl font-bold text-green-600">
+              {new Set(logs?.map(log => log.userId)).size || 0}
+            </div>
+            <p className="text-green-500 text-sm font-medium mt-1">Unique users</p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-xl rounded-2xl overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-purple-600 to-purple-700 text-white">
+            <CardTitle className="flex items-center gap-3 text-lg font-bold">
+              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                <TrendingUp className="h-5 w-5" />
+              </div>
+              Recent Activity
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="text-3xl font-bold text-purple-600">
+              {logs?.filter(log => new Date(log.createdAt) > new Date(Date.now() - 24 * 60 * 60 * 1000)).length || 0}
+            </div>
+            <p className="text-purple-500 text-sm font-medium mt-1">Last 24 hours</p>
+          </CardContent>
+        </Card>
       </div>
 
-      <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-        <div className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+      <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-xl rounded-2xl overflow-hidden">
+        <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                <Activity className="h-5 w-5" />
+              </div>
               Recent Activities
-            </h2>
+            </div>
             {logs && (
-              <Badge variant="outline" className="text-xs">
-                {logs.length} activities shown
+              <Badge className="bg-white/20 text-white border-white/30">
+                {logs.length} activities
               </Badge>
             )}
-          </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-6">
 
           {isLoading && (
             <div className="text-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-              <p className="mt-4 text-gray-600 dark:text-gray-400">Loading activities...</p>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+              <p className="mt-4 text-gray-600">Loading activities...</p>
             </div>
           )}
 
           {!isLoading && logs && logs.length === 0 && (
             <div className="text-center py-12">
               <Activity className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600 dark:text-gray-400">No activity logs yet</p>
+              <p className="text-gray-600">No activity logs yet</p>
             </div>
           )}
 
           {!isLoading && logs && logs.length > 0 && (
-            <ScrollArea className="h-[calc(100vh-280px)]">
+            <ScrollArea className="h-[calc(100vh-400px)]">
               <div className="space-y-3 pr-4">
                 {logs.map((log) => (
                   <div
                     key={log.id}
-                    className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                    className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4 hover:from-blue-100 hover:to-indigo-100 transition-all duration-300 hover:shadow-md"
                     data-testid={`activity-log-${log.id}`}
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 space-y-2">
                         <div className="flex items-center gap-2 flex-wrap">
                           <Badge 
-                            className={actionColors[log.action] || "bg-gray-100 text-gray-800"}
+                            className={actionColors[log.action] || "bg-blue-100 text-blue-800"}
                             data-testid={`badge-action-${log.action}`}
                           >
                             {actionLabels[log.action] || log.action}
                           </Badge>
                           
                           {log.user && (
-                            <div className="flex items-center gap-1 text-sm text-gray-700 dark:text-gray-300">
+                            <div className="flex items-center gap-1 text-sm text-blue-700">
                               <User className="h-3.5 w-3.5" />
                               <span className="font-medium">{getUserDisplay(log.user)}</span>
-                              <Badge variant="outline" className="text-xs">
+                              <Badge variant="outline" className="text-xs border-blue-300 text-blue-700">
                                 {log.user.role.replace('_', ' ')}
                               </Badge>
                             </div>
@@ -148,51 +196,51 @@ export default function ActivityLogs() {
                         </div>
 
                         {log.targetUser && (
-                          <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
+                          <div className="flex items-center gap-1 text-sm text-blue-600">
                             <span>→ affecting</span>
-                            <span className="font-medium text-gray-900 dark:text-gray-100">
+                            <span className="font-medium text-blue-900">
                               {getUserDisplay(log.targetUser)}
                             </span>
-                            <Badge variant="outline" className="text-xs">
+                            <Badge variant="outline" className="text-xs border-blue-300 text-blue-700">
                               {log.targetUser.role.replace('_', ' ')}
                             </Badge>
                           </div>
                         )}
 
                         {log.details && (
-                          <div className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400">
+                          <div className="flex items-start gap-2 text-sm text-blue-600">
                             <FileText className="h-4 w-4 mt-0.5 flex-shrink-0" />
                             <div className="space-y-1">
                               {log.details.courseName && (
-                                <div>Course: <span className="font-medium text-gray-900 dark:text-gray-100">{log.details.courseName}</span></div>
+                                <div>Course: <span className="font-medium text-blue-900">{log.details.courseName}</span></div>
                               )}
                               {log.details.materialTitle && (
-                                <div>Material: <span className="font-medium text-gray-900 dark:text-gray-100">{log.details.materialTitle}</span></div>
+                                <div>Material: <span className="font-medium text-blue-900">{log.details.materialTitle}</span></div>
                               )}
                               {log.details.materialType && (
-                                <div>Type: <span className="font-medium text-gray-900 dark:text-gray-100">{log.details.materialType}</span></div>
+                                <div>Type: <span className="font-medium text-blue-900">{log.details.materialType}</span></div>
                               )}
                               {log.details.taskTitle && (
-                                <div>Task: <span className="font-medium text-gray-900 dark:text-gray-100">{log.details.taskTitle}</span></div>
+                                <div>Task: <span className="font-medium text-blue-900">{log.details.taskTitle}</span></div>
                               )}
                               {log.details.status && (
-                                <div>Status: <span className="font-medium text-gray-900 dark:text-gray-100">{log.details.status}</span></div>
+                                <div>Status: <span className="font-medium text-blue-900">{log.details.status}</span></div>
                               )}
                               {log.details.username && (
-                                <div>Username: <span className="font-medium text-gray-900 dark:text-gray-100">{log.details.username}</span></div>
+                                <div>Username: <span className="font-medium text-blue-900">{log.details.username}</span></div>
                               )}
                             </div>
                           </div>
                         )}
 
                         {log.ipAddress && (
-                          <div className="text-xs text-gray-500 dark:text-gray-500">
+                          <div className="text-xs text-blue-500">
                             IP: {log.ipAddress}
                           </div>
                         )}
                       </div>
 
-                      <div className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-500 flex-shrink-0">
+                      <div className="flex items-center gap-1.5 text-sm text-blue-500 flex-shrink-0">
                         <Clock className="h-3.5 w-3.5" />
                         <span className="whitespace-nowrap">
                           {formatDistanceToNow(new Date(log.createdAt), { addSuffix: true })}
@@ -204,8 +252,8 @@ export default function ActivityLogs() {
               </div>
             </ScrollArea>
           )}
-        </div>
+        </CardContent>
       </Card>
-    </div>
+    </PageLayout>
   );
 }

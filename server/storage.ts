@@ -15,6 +15,9 @@ import {
   activityLogs,
   attendance,
   enrollmentRequests,
+  posts,
+  postComments,
+  postLikes,
   type User,
   type UpsertUser,
   type Course,
@@ -43,9 +46,17 @@ import {
   type InsertAttendance,
   type EnrollmentRequest,
   type InsertEnrollmentRequest,
+  type Post,
+  type InsertPost,
+  type PostComment,
+  type InsertPostComment,
+  type PostLike,
+  type InsertPostLike,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, inArray } from "drizzle-orm";
+import path from "path";
+import fs from "fs/promises";
 
 export interface IStorage {
   // User operations
@@ -85,9 +96,11 @@ export interface IStorage {
   getSchedulesByStudent(studentId: string): Promise<Schedule[]>;
   getSchedulesByTrainer(trainerId: string): Promise<Schedule[]>;
   createSchedule(schedule: InsertSchedule): Promise<Schedule>;
+  updateSchedule(id: string, updates: Partial<Schedule>): Promise<Schedule>;
   
   // Query operations
   getQueriesByStudent(studentId: string): Promise<Query[]>;
+  getQueriesByTrainer(trainerId: string): Promise<Query[]>;
   createQuery(query: InsertQuery): Promise<Query>;
   updateQuery(id: string, updates: Partial<Query>): Promise<Query>;
   
@@ -125,6 +138,28 @@ export interface IStorage {
   approveEnrollmentRequest(id: string, reviewerId: string, enrolledById: string): Promise<EnrollmentRequest>;
   rejectEnrollmentRequest(id: string, reviewerId: string, message?: string): Promise<EnrollmentRequest>;
   getCoursesByCategory(category: string): Promise<Course[]>;
+  
+  // Post operations
+  createPost(post: InsertPost): Promise<Post>;
+  getAllPosts(): Promise<Post[]>;
+  getApprovedPosts(): Promise<Post[]>;
+  getPendingPosts(): Promise<Post[]>;
+  approvePost(id: string, approverId: string): Promise<Post>;
+  rejectPost(id: string): Promise<Post>;
+  
+  // Comment operations
+  createComment(comment: InsertPostComment): Promise<PostComment>;
+  getCommentsByPost(postId: string): Promise<PostComment[]>;
+  
+  // Like operations
+  toggleLike(postId: string, userId: string): Promise<{ liked: boolean; count: number }>;
+  getLikesByPost(postId: string): Promise<PostLike[]>;
+  
+  // Image cleanup
+  deleteExpiredPostImages(): Promise<number>;
+  
+  // Profile operations
+  updateUserProfile(userId: string, updates: Partial<User>): Promise<User>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -321,12 +356,49 @@ export class DatabaseStorage implements IStorage {
     return schedule;
   }
 
+  async updateSchedule(id: string, updates: Partial<Schedule>): Promise<Schedule> {
+    const [schedule] = await db
+      .update(schedules)
+      .set(updates)
+      .where(eq(schedules.id, id))
+      .returning();
+    return schedule;
+  }
+
   // Query operations
   async getQueriesByStudent(studentId: string): Promise<Query[]> {
     return await db
       .select()
       .from(queries)
       .where(eq(queries.studentId, studentId))
+      .orderBy(desc(queries.createdAt));
+  }
+
+  async getQueriesByTrainer(trainerId: string): Promise<Query[]> {
+    // Get all queries from students enrolled in trainer's courses
+    const trainerCourses = await db
+      .select({ courseId: trainerAssignments.courseId })
+      .from(trainerAssignments)
+      .where(eq(trainerAssignments.trainerId, trainerId));
+    
+    if (trainerCourses.length === 0) return [];
+    
+    const courseIds = trainerCourses.map(tc => tc.courseId);
+    
+    // Get modules from trainer's courses
+    const courseModules = await db
+      .select({ id: modules.id })
+      .from(modules)
+      .where(inArray(modules.courseId, courseIds));
+    
+    if (courseModules.length === 0) return [];
+    
+    const moduleIds = courseModules.map(m => m.id);
+    
+    return await db
+      .select()
+      .from(queries)
+      .where(inArray(queries.moduleId, moduleIds))
       .orderBy(desc(queries.createdAt));
   }
 
@@ -416,7 +488,7 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(classMaterials)
-      .where(sql`${classMaterials.id} = ANY(${materialIds})`)
+      .where(inArray(classMaterials.id, materialIds))
       .orderBy(desc(classMaterials.uploadedAt));
   }
 
@@ -491,7 +563,7 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(attendance)
-      .where(sql`${attendance.scheduleId} = ANY(${scheduleIds})`)
+      .where(inArray(attendance.scheduleId, scheduleIds))
       .orderBy(desc(attendance.date));
   }
 
@@ -599,6 +671,151 @@ export class DatabaseStorage implements IStorage {
       .from(courses)
       .where(eq(courses.category, category))
       .orderBy(desc(courses.createdAt));
+  }
+
+  // Post operations
+  async createPost(postData: InsertPost): Promise<Post> {
+    const [post] = await db
+      .insert(posts)
+      .values(postData)
+      .returning();
+    return post;
+  }
+
+  async getAllPosts(): Promise<Post[]> {
+    return await db
+      .select()
+      .from(posts)
+      .orderBy(desc(posts.createdAt));
+  }
+
+  async getApprovedPosts(): Promise<Post[]> {
+    return await db
+      .select()
+      .from(posts)
+      .where(eq(posts.status, 'approved'))
+      .orderBy(desc(posts.createdAt));
+  }
+
+  async getPendingPosts(): Promise<Post[]> {
+    return await db
+      .select()
+      .from(posts)
+      .where(eq(posts.status, 'pending'))
+      .orderBy(desc(posts.createdAt));
+  }
+
+  async approvePost(id: string, approverId: string): Promise<Post> {
+    const [post] = await db
+      .update(posts)
+      .set({
+        status: 'approved',
+        approvedBy: approverId,
+        approvedAt: new Date(),
+      })
+      .where(eq(posts.id, id))
+      .returning();
+    return post;
+  }
+
+  async rejectPost(id: string): Promise<Post> {
+    const [post] = await db
+      .update(posts)
+      .set({ status: 'rejected' })
+      .where(eq(posts.id, id))
+      .returning();
+    return post;
+  }
+
+  // Comment operations
+  async createComment(commentData: InsertPostComment): Promise<PostComment> {
+    const [comment] = await db
+      .insert(postComments)
+      .values(commentData)
+      .returning();
+    return comment;
+  }
+
+  async getCommentsByPost(postId: string): Promise<PostComment[]> {
+    return await db
+      .select()
+      .from(postComments)
+      .where(eq(postComments.postId, postId))
+      .orderBy(postComments.createdAt);
+  }
+
+  // Like operations
+  async toggleLike(postId: string, userId: string): Promise<{ liked: boolean; count: number }> {
+    const existingLike = await db
+      .select()
+      .from(postLikes)
+      .where(and(eq(postLikes.postId, postId), eq(postLikes.userId, userId)));
+    
+    if (existingLike.length > 0) {
+      // Unlike
+      await db
+        .delete(postLikes)
+        .where(eq(postLikes.id, existingLike[0].id));
+    } else {
+      // Like
+      await db
+        .insert(postLikes)
+        .values({ postId, userId });
+    }
+    
+    const [{ count }] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(postLikes)
+      .where(eq(postLikes.postId, postId));
+    
+    return { liked: existingLike.length === 0, count: count || 0 };
+  }
+
+  async getLikesByPost(postId: string): Promise<PostLike[]> {
+    return await db
+      .select()
+      .from(postLikes)
+      .where(eq(postLikes.postId, postId));
+  }
+
+  // Image cleanup
+  async deleteExpiredPostImages(): Promise<number> {
+    const now = new Date();
+    const expiredPosts = await db
+      .select()
+      .from(posts)
+      .where(sql`${posts.imageExpiresAt} < ${now} AND ${posts.imageUrl} IS NOT NULL`);
+    
+    let deletedCount = 0;
+    for (const post of expiredPosts) {
+      if (post.imageUrl) {
+        try {
+          const filePath = path.join(process.cwd(), post.imageUrl);
+          await fs.unlink(filePath).catch(() => {});
+          deletedCount++;
+        } catch (error) {
+          console.error(`Failed to delete image for post ${post.id}:`, error);
+        }
+      }
+    }
+    
+    // Clear imageUrl and imageExpiresAt for expired posts
+    await db
+      .update(posts)
+      .set({ imageUrl: null, imageExpiresAt: null })
+      .where(sql`${posts.imageExpiresAt} < ${now}`);
+    
+    return deletedCount;
+  }
+
+  // Profile operations
+  async updateUserProfile(userId: string, updates: Partial<User>): Promise<User> {
+    const [user] = await db
+      .update(users)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return user;
   }
 }
 

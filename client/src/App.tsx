@@ -22,6 +22,9 @@ import AdminAssignTrainers from "@/pages/admin/AssignTrainers";
 import AdminActivityLogs from "@/pages/admin/ActivityLogs";
 import AdminManageCourses from "@/pages/admin/ManageCourses";
 import AdminEnrollmentRequests from "@/pages/admin/EnrollmentRequests";
+import AdminPostApproval from "@/pages/admin/PostApproval";
+import Posts from "@/pages/Posts";
+import Profile from "@/pages/Profile";
 
 // Sales Pages
 import SalesDashboard from "@/pages/sales/Dashboard";
@@ -40,6 +43,7 @@ import TrainerTasks from "@/pages/trainer/Tasks";
 import TrainerCourseStudents from "@/pages/trainer/CourseStudents";
 import TrainerClassMaterials from "@/pages/trainer/ClassMaterials";
 import TrainerAttendance from "@/pages/trainer/Attendance";
+import TrainerQueries from "@/pages/trainer/Queries";
 
 // Student Pages
 import StudentDashboard from "@/pages/student/Dashboard";
@@ -57,6 +61,9 @@ function AdminRoutes() {
   return (
     <Switch>
       <Route path="/" component={AdminDashboard} />
+      <Route path="/profile" component={Profile} />
+      <Route path="/posts" component={Posts} />
+      <Route path="/post-approval" component={AdminPostApproval} />
       <Route path="/users" component={AdminUsers} />
       <Route path="/courses" component={AdminCourses} />
       <Route path="/courses/:courseId/modules" component={AdminCourseModules} />
@@ -65,6 +72,7 @@ function AdminRoutes() {
       <Route path="/enrollment-requests" component={AdminEnrollmentRequests} />
       <Route path="/activity-logs" component={AdminActivityLogs} />
       <Route path="/schedules/create" component={AdminCreateSchedule} />
+      <Route path="/schedules/edit/:id" component={AdminCreateSchedule} />
       <Route path="/schedules" component={AdminSchedules} />
       <Route component={NotFound} />
     </Switch>
@@ -75,11 +83,14 @@ function SalesRoutes() {
   return (
     <Switch>
       <Route path="/" component={SalesDashboard} />
+      <Route path="/profile" component={Profile} />
+      <Route path="/posts" component={Posts} />
       <Route path="/courses" component={SalesCourses} />
       <Route path="/enroll" component={SalesEnrollStudent} />
       <Route path="/enrollment-requests" component={AdminEnrollmentRequests} />
       <Route path="/students" component={SalesStudents} />
       <Route path="/schedules/create" component={SalesCreateSchedule} />
+      <Route path="/schedules/edit/:id" component={SalesCreateSchedule} />
       <Route path="/schedules" component={SalesSchedules} />
       <Route component={NotFound} />
     </Switch>
@@ -90,11 +101,14 @@ function TrainerRoutes() {
   return (
     <Switch>
       <Route path="/" component={TrainerDashboard} />
+      <Route path="/profile" component={Profile} />
+      <Route path="/posts" component={Posts} />
       <Route path="/courses" component={TrainerCourses} />
       <Route path="/courses/:courseId/students" component={TrainerCourseStudents} />
       <Route path="/students" component={TrainerStudents} />
       <Route path="/tasks" component={TrainerTasks} />
       <Route path="/materials" component={TrainerClassMaterials} />
+      <Route path="/queries" component={TrainerQueries} />
       <Route path="/attendance" component={TrainerAttendance} />
       <Route path="/schedule" component={TrainerSchedules} />
       <Route component={NotFound} />
@@ -106,6 +120,8 @@ function StudentRoutes() {
   return (
     <Switch>
       <Route path="/" component={StudentDashboard} />
+      <Route path="/profile" component={Profile} />
+      <Route path="/posts" component={Posts} />
       <Route path="/courses" component={StudentCourses} />
       <Route path="/courses/:courseId" component={StudentCourseDetail} />
       <Route path="/progress" component={StudentProgress} />

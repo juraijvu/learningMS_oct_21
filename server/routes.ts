@@ -1,8 +1,9 @@
 import type { Express } from "express";
+import express from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated, hashPassword, verifyPassword } from "./auth";
-import { insertCourseSchema, insertModuleSchema, insertEnrollmentSchema, insertTaskSchema, insertScheduleSchema, insertQuerySchema, insertUserSchema, insertTrainerAssignmentSchema, insertClassMaterialSchema, insertAttendanceSchema, insertEnrollmentRequestSchema, classMaterials } from "@shared/schema";
+import { insertCourseSchema, insertModuleSchema, insertEnrollmentSchema, insertTaskSchema, insertScheduleSchema, insertQuerySchema, insertUserSchema, insertTrainerAssignmentSchema, insertClassMaterialSchema, insertAttendanceSchema, insertEnrollmentRequestSchema, insertPostSchema, insertPostCommentSchema, classMaterials, posts, postComments, postLikes } from "@shared/schema";
 import { db } from "./db";
 import { courses, modules, enrollments, users, trainerAssignments, moduleProgress, tasks, schedules, queries, attendance, enrollmentRequests } from "@shared/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
@@ -14,27 +15,119 @@ import { ActivityLogger } from "./activityLogger";
 import * as cheerio from "cheerio";
 import fetch from "node-fetch";
 
+// Time slot utility functions
+function parseTimeSlot(timeSlot: string): { startTime: string; endTime: string } | null {
+  const match = timeSlot.match(/^(\d{2}:\d{2})-(\d{2}:\d{2})$/);
+  if (!match) return null;
+  
+  return {
+    startTime: match[1],
+    endTime: match[2],
+  };
+}
+
+function timeToMinutes(time: string): number {
+  const [hours, minutes] = time.split(':').map(Number);
+  return hours * 60 + minutes;
+}
+
+function doStartTimesMatch(slot1: string, slot2: string): boolean {
+  const parsed1 = parseTimeSlot(slot1);
+  const parsed2 = parseTimeSlot(slot2);
+  
+  if (!parsed1 || !parsed2) return false;
+  
+  // Only check if starting times are the same
+  return parsed1.startTime === parsed2.startTime;
+}
+
+// Conflict detection function
+async function checkTrainerConflict(
+  trainerId: string,
+  courseId: string,
+  timeSlot: string,
+  daysOfWeek: number[],
+  weekStart: string,
+  excludeScheduleId?: string
+): Promise<{ hasConflict: boolean; conflictMessage?: string }> {
+  try {
+    // Get all existing schedules for this trainer
+    const existingSchedules = await db
+      .select()
+      .from(schedules)
+      .where(eq(schedules.trainerId, trainerId));
+    
+    // Filter schedules that might conflict
+    for (const existingSchedule of existingSchedules) {
+      // Skip if this is the same schedule we're editing
+      if (excludeScheduleId && existingSchedule.id === excludeScheduleId) {
+        continue;
+      }
+      
+      // Check if days overlap
+      if (!daysOfWeek.includes(existingSchedule.dayOfWeek)) {
+        continue;
+      }
+      
+      // Check if starting times match
+      if (!doStartTimesMatch(timeSlot, existingSchedule.timeSlot)) {
+        continue;
+      }
+      
+      // Check if it's a different course (conflict scenario)
+      if (existingSchedule.courseId !== courseId) {
+        // Get course details for better error message
+        const [conflictCourse] = await db
+          .select({ title: courses.title })
+          .from(courses)
+          .where(eq(courses.id, existingSchedule.courseId));
+        
+        return {
+          hasConflict: true,
+          conflictMessage: `Trainer is busy: Already scheduled for "${conflictCourse?.title || 'another course'}" at ${existingSchedule.timeSlot} on the same day(s).`
+        };
+      }
+      
+      // Same course, same time, same day - this is allowed for batch scheduling
+      // No conflict in this case
+    }
+    
+    return { hasConflict: false };
+  } catch (error) {
+    console.error('Error checking trainer conflict:', error);
+    throw new Error('Failed to check trainer availability');
+  }
+}
+
 // Role-based middleware
 const requireRole = (roles: string[]) => {
   return async (req: any, res: any, next: any) => {
-    const userId = req.session?.userId;
-    if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
+    try {
+      const userId = req.session?.userId;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
 
-    const user = await storage.getUser(userId);
-    if (!user || !roles.includes(user.role)) {
-      return res.status(403).json({ message: "Forbidden - Insufficient permissions" });
-    }
+      const user = await storage.getUser(userId);
+      if (!user || !roles.includes(user.role)) {
+        return res.status(403).json({ message: "Forbidden - Insufficient permissions" });
+      }
 
-    req.currentUser = user;
-    next();
+      req.currentUser = user;
+      next();
+    } catch (error) {
+      console.error("Error in requireRole middleware:", error);
+      return res.status(500).json({ message: "Internal server error" });
+    }
   };
 };
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
   setupAuth(app);
+  
+  // Serve static files from uploads directory
+  app.use('/uploads', express.static('uploads'));
 
   // Login schema
   const loginSchema = z.object({
@@ -134,6 +227,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await db.update(users)
         .set({ passwordHash: newPasswordHash, updatedAt: new Date() })
         .where(eq(users.id, userId));
+      
+      // Log activity
+      await ActivityLogger.logPasswordChanged(userId, req);
 
       res.json({ message: "Password changed successfully" });
     } catch (error) {
@@ -160,6 +256,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...userData,
         passwordHash,
       });
+      
+      // Log activity
+      const adminId = req.currentUser?.id || req.session?.userId;
+      if (adminId) {
+        await ActivityLogger.logUserCreated(adminId, user.id, userData.username, userData.role, req);
+      }
 
       const { passwordHash: _, ...userWithoutPassword } = user;
       res.json(userWithoutPassword);
@@ -207,7 +309,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin: Create user (same as register)
-  app.post("/api/admin/users", isAuthenticated, requireRole(['admin']), async (req, res) => {
+  app.post("/api/admin/users", isAuthenticated, requireRole(['admin']), async (req: any, res) => {
     try {
       const { password, ...userData } = registerSchema.parse(req.body);
       
@@ -221,6 +323,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...userData,
         passwordHash,
       });
+      
+      // Log activity
+      const adminId = req.currentUser?.id || req.session?.userId;
+      if (adminId) {
+        await ActivityLogger.logUserCreated(adminId, user.id, userData.username, userData.role, req);
+      }
 
       const { passwordHash: _, ...userWithoutPassword } = user;
       res.json(userWithoutPassword);
@@ -249,6 +357,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const courseData = insertCourseSchema.parse(req.body);
       const course = await storage.createCourse(courseData);
+      
+      // Log activity
+      const adminId = req.currentUser?.id || req.session?.userId;
+      if (adminId) {
+        await ActivityLogger.logCourseCreated(adminId, course.id, req);
+      }
+      
       res.json(course);
     } catch (error) {
       console.error("Error creating course:", error);
@@ -330,7 +445,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Add assignedBy from the current admin user
       const assignmentData = insertTrainerAssignmentSchema.parse({
         ...req.body,
-        assignedBy: req.currentUser.id,
+        assignedBy: req.currentUser?.id || req.session?.userId,
       });
       
       // Check if trainer is already assigned to this course
@@ -357,7 +472,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Sales: Get statistics
   app.get("/api/sales/stats", isAuthenticated, requireRole(['sales_consultant']), async (req: any, res) => {
     try {
-      const userId = req.currentUser.id;
+      const userId = req.currentUser?.id || req.session?.userId;
       const [myEnrollments] = await db.select({ count: sql<number>`count(*)` }).from(enrollments).where(eq(enrollments.enrolledBy, userId));
       const [coursesCount] = await db.select({ count: sql<number>`count(*)` }).from(courses);
       const [studentsCount] = await db.select({ count: sql<number>`count(*)` }).from(users).where(eq(users.role, 'student'));
@@ -380,7 +495,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Trainer: Get statistics
   app.get("/api/trainer/stats", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
     try {
-      const trainerId = req.currentUser.id;
+      const trainerId = req.currentUser?.id || req.session?.userId;
       const [myCoursesCount] = await db.select({ count: sql<number>`count(*)` }).from(trainerAssignments).where(eq(trainerAssignments.trainerId, trainerId));
       
       // Get student count from enrollments in trainer's courses
@@ -408,7 +523,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Trainer: Get assigned courses
   app.get("/api/trainer/courses", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
     try {
-      const trainerId = req.currentUser.id;
+      const trainerId = req.currentUser?.id || req.session?.userId;
       const assignments = await storage.getTrainerAssignments(trainerId);
       
       const coursesWithDetails = await Promise.all(
@@ -437,7 +552,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Student: Get statistics
   app.get("/api/student/stats", isAuthenticated, requireRole(['student']), async (req: any, res) => {
     try {
-      const studentId = req.currentUser.id;
+      const studentId = req.currentUser?.id || req.session?.userId;
       const [enrolledCount] = await db.select({ count: sql<number>`count(*)` }).from(enrollments).where(eq(enrollments.studentId, studentId));
       const [completedCount] = await db.select({ count: sql<number>`count(*)` }).from(moduleProgress).where(and(eq(moduleProgress.studentId, studentId), eq(moduleProgress.isCompleted, true)));
       const [totalModulesCount] = await db.select({ count: sql<number>`count(*)` }).from(moduleProgress).where(eq(moduleProgress.studentId, studentId));
@@ -460,7 +575,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Student: Get enrolled courses
   app.get("/api/student/courses", isAuthenticated, requireRole(['student']), async (req: any, res) => {
     try {
-      const studentId = req.currentUser.id;
+      const studentId = req.currentUser?.id || req.session?.userId;
       const studentEnrollments = await storage.getEnrollmentsByStudent(studentId);
       
       const coursesWithProgress = await Promise.all(
@@ -490,7 +605,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Student: Get progress
   app.get("/api/student/progress", isAuthenticated, requireRole(['student']), async (req: any, res) => {
     try {
-      const studentId = req.currentUser.id;
+      const studentId = req.currentUser?.id || req.session?.userId;
       const progress = await storage.getStudentProgress(studentId);
       
       const progressWithDetails = await Promise.all(
@@ -521,7 +636,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/student/progress/:moduleId/complete", isAuthenticated, requireRole(['student']), async (req: any, res) => {
     try {
       const { moduleId } = req.params;
-      const studentId = req.currentUser.id;
+      const studentId = req.currentUser?.id || req.session?.userId;
       
       const progressData = {
         studentId,
@@ -531,6 +646,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       
       const updatedProgress = await storage.updateModuleProgress(progressData);
+      
+      // Log activity
+      const [module] = await db.select().from(modules).where(eq(modules.id, moduleId));
+      if (module) {
+        await ActivityLogger.logModuleCompleted(studentId, moduleId, module.title, req);
+      }
+      
       res.json(updatedProgress);
     } catch (error) {
       console.error("Error marking module complete:", error);
@@ -541,7 +663,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Student: Get attendance
   app.get("/api/student/attendance", isAuthenticated, requireRole(['student']), async (req: any, res) => {
     try {
-      const studentId = req.currentUser.id;
+      const studentId = req.currentUser?.id || req.session?.userId;
       const studentAttendance = await storage.getAttendanceByStudent(studentId);
       
       const attendanceWithDetails = await Promise.all(
@@ -570,13 +692,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Student: Mark attendance
   app.post("/api/student/attendance", isAuthenticated, requireRole(['student']), async (req: any, res) => {
     try {
-      const studentId = req.currentUser.id;
+      const studentId = req.currentUser?.id || req.session?.userId;
       const attendanceData = insertAttendanceSchema.parse({
         ...req.body,
         studentId,
       });
       
       const attendance = await storage.createAttendance(attendanceData);
+      
+      // Log activity
+      const [schedule] = await db.select().from(schedules).where(eq(schedules.id, attendanceData.scheduleId));
+      if (schedule) {
+        const [course] = await db.select().from(courses).where(eq(courses.id, schedule.courseId));
+        await ActivityLogger.logAttendanceMarked(
+          studentId,
+          attendance.id,
+          course?.title || 'Unknown Course',
+          attendanceData.status || 'present',
+          req
+        );
+      }
+      
       res.json(attendance);
     } catch (error) {
       console.error("Error marking attendance:", error);
@@ -621,6 +757,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const trainerId = req.currentUser.id;
       
       const verifiedAttendance = await storage.verifyAttendance(id, trainerId, notes);
+      
+      // Log activity
+      const [schedule] = await db.select().from(schedules).where(eq(schedules.id, verifiedAttendance.scheduleId));
+      if (schedule) {
+        const [course] = await db.select().from(courses).where(eq(courses.id, schedule.courseId));
+        await ActivityLogger.logAttendanceVerified(
+          trainerId,
+          verifiedAttendance.studentId,
+          id,
+          course?.title || 'Unknown Course',
+          req
+        );
+      }
+      
       res.json(verifiedAttendance);
     } catch (error) {
       console.error("Error verifying attendance:", error);
@@ -651,6 +801,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: 'submitted',
         submittedAt: new Date(),
       });
+      
+      // Log activity
+      const studentId = req.currentUser?.id || req.session?.userId;
+      if (studentId) {
+        await ActivityLogger.logTaskSubmitted(studentId, taskId, updatedTask.title, req);
+      }
 
       res.json(updatedTask);
     } catch (error) {
@@ -717,6 +873,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const studentId = req.currentUser.id;
       const queryData = insertQuerySchema.parse({ ...req.body, studentId });
       const query = await storage.createQuery(queryData);
+      
+      // Log activity
+      await ActivityLogger.logQueryCreated(studentId, query.id, req);
+      
       res.json(query);
     } catch (error) {
       console.error("Error creating query:", error);
@@ -724,11 +884,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Student: Get schedule
+  // Trainer: Get queries from students
+  app.get("/api/trainer/queries", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
+    try {
+      const trainerId = req.currentUser.id;
+      const trainerQueries = await storage.getQueriesByTrainer(trainerId);
+      
+      const queriesWithDetails = await Promise.all(
+        trainerQueries.map(async (query) => {
+          const [module] = await db.select().from(modules).where(eq(modules.id, query.moduleId));
+          const [course] = await db.select().from(courses).where(eq(courses.id, module.courseId));
+          const [student] = await db.select().from(users).where(eq(users.id, query.studentId));
+          
+          return {
+            ...query,
+            moduleTitle: module.title,
+            courseTitle: course.title,
+            studentName: `${student.firstName} ${student.lastName}`,
+          };
+        })
+      );
+
+      res.json(queriesWithDetails);
+    } catch (error) {
+      console.error("Error fetching trainer queries:", error);
+      res.status(500).json({ message: "Failed to fetch queries" });
+    }
+  });
+
+  // Trainer: Respond to query
+  app.patch("/api/trainer/queries/:id/respond", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { response } = req.body;
+      
+      if (!response || response.trim() === '') {
+        return res.status(400).json({ message: "Response cannot be empty" });
+      }
+      
+      const updatedQuery = await storage.updateQuery(id, {
+        response: response.trim(),
+        isResolved: true,
+        resolvedAt: new Date(),
+      });
+      
+      // Log activity
+      const trainerId = req.currentUser?.id || req.session?.userId;
+      if (trainerId) {
+        await ActivityLogger.logQueryResolved(trainerId, updatedQuery.studentId, id, req);
+      }
+      
+      res.json(updatedQuery);
+    } catch (error) {
+      console.error("Error responding to query:", error);
+      res.status(500).json({ message: "Failed to respond to query" });
+    }
+  });
+
+  // Student: Get schedule (only active schedules)
   app.get("/api/student/schedule", isAuthenticated, requireRole(['student']), async (req: any, res) => {
     try {
       const studentId = req.currentUser.id;
-      const studentSchedules = await storage.getSchedulesByStudent(studentId);
+      const studentSchedules = await db.select()
+        .from(schedules)
+        .where(and(
+          eq(schedules.studentId, studentId),
+          sql`(${schedules.status} = 'active' OR ${schedules.status} IS NULL)`
+        ))
+        .orderBy(schedules.weekStart, schedules.dayOfWeek);
       
       const schedulesWithDetails = await Promise.all(
         studentSchedules.map(async (schedule) => {
@@ -741,6 +964,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             ...schedule,
             courseTitle: course?.title || '',
             trainerName: trainer ? `${trainer.firstName} ${trainer.lastName}` : 'TBA',
+            status: schedule.status || 'active',
           };
         })
       );
@@ -772,6 +996,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             courseTitle: course?.title || '',
             studentName: student ? `${student.firstName} ${student.lastName}` : 'TBA',
             trainerName: trainer ? `${trainer.firstName} ${trainer.lastName}` : 'TBA',
+            status: schedule.status || 'active', // Ensure status is included
           };
         })
       );
@@ -800,6 +1025,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             ...schedule,
             courseTitle: course?.title || '',
             studentName: student ? `${student.firstName} ${student.lastName}` : 'TBA',
+            status: schedule.status || 'active',
           };
         })
       );
@@ -831,6 +1057,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             courseTitle: course?.title || '',
             studentName: student ? `${student.firstName} ${student.lastName}` : 'TBA',
             trainerName: trainer ? `${trainer.firstName} ${trainer.lastName}` : 'TBA',
+            status: schedule.status || 'active', // Ensure status is included
           };
         })
       );
@@ -842,33 +1069,321 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin: Get single schedule
+  app.get("/api/admin/schedules/:id", isAuthenticated, requireRole(['admin']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const [schedule] = await db.select().from(schedules).where(eq(schedules.id, id));
+      
+      if (!schedule) {
+        return res.status(404).json({ message: "Schedule not found" });
+      }
+      
+      res.json(schedule);
+    } catch (error) {
+      console.error("Error fetching schedule:", error);
+      res.status(500).json({ message: "Failed to fetch schedule" });
+    }
+  });
+
   // Admin: Create schedule
   app.post("/api/admin/schedules", isAuthenticated, requireRole(['admin']), async (req: any, res) => {
     try {
+      const { courseId, studentId, trainerId, weekStart, dayOfWeek, timeSlot } = req.body;
+      
       const scheduleData = insertScheduleSchema.parse({
-        ...req.body,
+        courseId,
+        studentId,
+        trainerId,
+        weekStart,
+        dayOfWeek,
+        timeSlot,
         createdBy: req.currentUser.id,
       });
+      
+      // Check for trainer conflicts
+      const conflictCheck = await checkTrainerConflict(
+        trainerId,
+        courseId,
+        timeSlot,
+        [dayOfWeek],
+        weekStart
+      );
+      
+      if (conflictCheck.hasConflict) {
+        return res.status(409).json({ message: conflictCheck.conflictMessage });
+      }
+      
       const schedule = await storage.createSchedule(scheduleData);
+      
+      // Log activity
+      const [course] = await db.select().from(courses).where(eq(courses.id, courseId));
+      await ActivityLogger.logScheduleCreated(
+        req.currentUser.id,
+        schedule.id,
+        studentId,
+        course?.title || 'Unknown Course',
+        timeSlot,
+        req
+      );
+      
       res.json(schedule);
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid input", errors: error.errors });
+      }
       console.error("Error creating schedule:", error);
       res.status(500).json({ message: "Failed to create schedule" });
+    }
+  });
+
+  // Sales: Get single schedule
+  app.get("/api/sales/schedules/:id", isAuthenticated, requireRole(['sales_consultant']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const [schedule] = await db.select().from(schedules).where(eq(schedules.id, id));
+      
+      if (!schedule) {
+        return res.status(404).json({ message: "Schedule not found" });
+      }
+      
+      res.json(schedule);
+    } catch (error) {
+      console.error("Error fetching schedule:", error);
+      res.status(500).json({ message: "Failed to fetch schedule" });
     }
   });
 
   // Sales: Create schedule
   app.post("/api/sales/schedules", isAuthenticated, requireRole(['sales_consultant']), async (req: any, res) => {
     try {
+      const { courseId, studentId, trainerId, weekStart, dayOfWeek, timeSlot } = req.body;
+      
       const scheduleData = insertScheduleSchema.parse({
-        ...req.body,
+        courseId,
+        studentId,
+        trainerId,
+        weekStart,
+        dayOfWeek,
+        timeSlot,
         createdBy: req.currentUser.id,
       });
+      
+      // Check for trainer conflicts
+      const conflictCheck = await checkTrainerConflict(
+        trainerId,
+        courseId,
+        timeSlot,
+        [dayOfWeek],
+        weekStart
+      );
+      
+      if (conflictCheck.hasConflict) {
+        return res.status(409).json({ message: conflictCheck.conflictMessage });
+      }
+      
       const schedule = await storage.createSchedule(scheduleData);
+      
+      // Log activity
+      const [course] = await db.select().from(courses).where(eq(courses.id, courseId));
+      await ActivityLogger.logScheduleCreated(
+        req.currentUser.id,
+        schedule.id,
+        studentId,
+        course?.title || 'Unknown Course',
+        timeSlot,
+        req
+      );
+      
       res.json(schedule);
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid input", errors: error.errors });
+      }
       console.error("Error creating schedule:", error);
       res.status(500).json({ message: "Failed to create schedule" });
+    }
+  });
+
+  // Admin: Update schedule
+  app.put("/api/admin/schedules/:id", isAuthenticated, requireRole(['admin']), async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { courseId, studentId, trainerId, weekStart, dayOfWeek, timeSlot } = req.body;
+      
+      const updateData = insertScheduleSchema.partial().parse({
+        courseId,
+        studentId,
+        trainerId,
+        weekStart,
+        dayOfWeek,
+        timeSlot,
+      });
+      
+      // Check for trainer conflicts (excluding current schedule)
+      if (trainerId && timeSlot && dayOfWeek !== undefined && courseId) {
+        const conflictCheck = await checkTrainerConflict(
+          trainerId,
+          courseId,
+          timeSlot,
+          [dayOfWeek],
+          weekStart || new Date().toISOString(),
+          id // Exclude current schedule from conflict check
+        );
+        
+        if (conflictCheck.hasConflict) {
+          return res.status(409).json({ message: conflictCheck.conflictMessage });
+        }
+      }
+      
+      const updatedSchedule = await storage.updateSchedule(id, updateData);
+      res.json(updatedSchedule);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid input", errors: error.errors });
+      }
+      console.error("Error updating schedule:", error);
+      res.status(500).json({ message: "Failed to update schedule" });
+    }
+  });
+  
+  // Admin: Update schedule status (bulk update for student-course)
+  app.patch("/api/admin/schedules/:id/status", isAuthenticated, requireRole(['admin']), async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+      
+      const validStatuses = ['active', 'paused', 'cancelled', 'completed'];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({ message: "Invalid status" });
+      }
+      
+      // Get the schedule to find student and course
+      const [schedule] = await db.select().from(schedules).where(eq(schedules.id, id));
+      if (!schedule) {
+        return res.status(404).json({ message: "Schedule not found" });
+      }
+      
+      // Update all schedules for this student-course combination
+      await db.update(schedules)
+        .set({ status, updatedAt: new Date() })
+        .where(and(
+          eq(schedules.studentId, schedule.studentId),
+          eq(schedules.courseId, schedule.courseId)
+        ));
+      
+      // Get updated count
+      const [updatedCount] = await db.select({ count: sql<number>`count(*)` })
+        .from(schedules)
+        .where(and(
+          eq(schedules.studentId, schedule.studentId),
+          eq(schedules.courseId, schedule.courseId)
+        ));
+      
+      res.json({ 
+        message: `Updated ${updatedCount.count} schedules to ${status}`,
+        updatedCount: updatedCount.count
+      });
+    } catch (error) {
+      console.error("Error updating schedule status:", error);
+      res.status(500).json({ message: "Failed to update schedule status" });
+    }
+  });
+
+  // Sales: Update schedule
+  app.put("/api/sales/schedules/:id", isAuthenticated, requireRole(['sales_consultant']), async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { courseId, studentId, trainerId, weekStart, dayOfWeek, timeSlot } = req.body;
+      
+      const updateData = insertScheduleSchema.partial().parse({
+        courseId,
+        studentId,
+        trainerId,
+        weekStart,
+        dayOfWeek,
+        timeSlot,
+      });
+      
+      // Check for trainer conflicts (excluding current schedule)
+      if (trainerId && timeSlot && dayOfWeek !== undefined && courseId) {
+        const conflictCheck = await checkTrainerConflict(
+          trainerId,
+          courseId,
+          timeSlot,
+          [dayOfWeek],
+          weekStart || new Date().toISOString(),
+          id // Exclude current schedule from conflict check
+        );
+        
+        if (conflictCheck.hasConflict) {
+          return res.status(409).json({ message: conflictCheck.conflictMessage });
+        }
+      }
+      
+      const updatedSchedule = await storage.updateSchedule(id, updateData);
+      res.json(updatedSchedule);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid input", errors: error.errors });
+      }
+      console.error("Error updating schedule:", error);
+      res.status(500).json({ message: "Failed to update schedule" });
+    }
+  });
+
+  // Sales: Update schedule status (bulk update for student-course)
+  app.patch("/api/sales/schedules/:id/status", isAuthenticated, requireRole(['sales_consultant']), async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+      
+      const validStatuses = ['active', 'paused', 'cancelled', 'completed'];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({ message: "Invalid status" });
+      }
+      
+      // Get the schedule to find student and course
+      const [schedule] = await db.select().from(schedules).where(eq(schedules.id, id));
+      if (!schedule) {
+        return res.status(404).json({ message: "Schedule not found" });
+      }
+      
+      // Update all schedules for this student-course combination
+      await db.update(schedules)
+        .set({ status, updatedAt: new Date() })
+        .where(and(
+          eq(schedules.studentId, schedule.studentId),
+          eq(schedules.courseId, schedule.courseId)
+        ));
+      
+      // Get updated count
+      const [updatedCount] = await db.select({ count: sql<number>`count(*)` })
+        .from(schedules)
+        .where(and(
+          eq(schedules.studentId, schedule.studentId),
+          eq(schedules.courseId, schedule.courseId)
+        ));
+      
+      // Log activity
+      const [course] = await db.select().from(courses).where(eq(courses.id, schedule.courseId));
+      await ActivityLogger.logScheduleStatusChanged(
+        req.currentUser?.id || req.session?.userId,
+        schedule.studentId,
+        course?.title || 'Unknown Course',
+        schedule.status || 'active',
+        status,
+        updatedCount.count,
+        req
+      );
+      
+      res.json({ 
+        message: `Updated ${updatedCount.count} schedules to ${status}`,
+        updatedCount: updatedCount.count
+      });
+    } catch (error) {
+      console.error("Error updating schedule status:", error);
+      res.status(500).json({ message: "Failed to update schedule status" });
     }
   });
 
@@ -902,10 +1417,126 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const trainerId = req.currentUser.id;
       const trainerTasks = await storage.getTasksByTrainer(trainerId);
-      res.json(trainerTasks);
+      
+      // Enrich with student names
+      const tasksWithStudentNames = await Promise.all(
+        trainerTasks.map(async (task) => {
+          const student = await storage.getUser(task.studentId);
+          return {
+            ...task,
+            studentName: student ? `${student.firstName || ''} ${student.lastName || ''}`.trim() || student.username : 'Unknown'
+          };
+        })
+      );
+      
+      res.json(tasksWithStudentNames);
     } catch (error) {
       console.error("Error fetching trainer tasks:", error);
       res.status(500).json({ message: "Failed to fetch tasks" });
+    }
+  });
+
+  // Trainer: Create task
+  app.post("/api/trainer/tasks", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
+    try {
+      const trainerId = req.currentUser.id;
+      const taskData = insertTaskSchema.parse({
+        ...req.body,
+        assignedBy: trainerId,
+      });
+      
+      const task = await storage.createTask(taskData);
+      
+      // Log activity
+      await ActivityLogger.logTaskCreated(trainerId, task.studentId, task.id, task.title, req);
+      
+      res.json(task);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid input", errors: error.errors });
+      }
+      console.error("Error creating task:", error);
+      res.status(500).json({ message: "Failed to create task" });
+    }
+  });
+
+  // Trainer: Approve task
+  app.patch("/api/trainer/tasks/:taskId/approve", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
+    try {
+      const { taskId } = req.params;
+      
+      const updatedTask = await storage.updateTask(taskId, {
+        status: 'approved',
+        reviewedAt: new Date(),
+      });
+      
+      // Log activity
+      const trainerId = req.currentUser?.id || req.session?.userId;
+      if (trainerId) {
+        await ActivityLogger.logTaskReviewed(trainerId, updatedTask.studentId, taskId, updatedTask.title, 'approved', req);
+      }
+      
+      res.json(updatedTask);
+    } catch (error) {
+      console.error("Error approving task:", error);
+      res.status(500).json({ message: "Failed to approve task" });
+    }
+  });
+
+  // Trainer: Reject task
+  app.patch("/api/trainer/tasks/:taskId/reject", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
+    try {
+      const { taskId } = req.params;
+      
+      const updatedTask = await storage.updateTask(taskId, {
+        status: 'pending',
+        reviewedAt: new Date(),
+      });
+      
+      // Log activity
+      const trainerId = req.currentUser?.id || req.session?.userId;
+      if (trainerId) {
+        await ActivityLogger.logTaskReviewed(trainerId, updatedTask.studentId, taskId, updatedTask.title, 'rejected', req);
+      }
+      
+      res.json(updatedTask);
+    } catch (error) {
+      console.error("Error rejecting task:", error);
+      res.status(500).json({ message: "Failed to reject task" });
+    }
+  });
+
+  // Trainer: Get all students from assigned courses
+  app.get("/api/trainer/students", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
+    try {
+      const trainerId = req.currentUser.id;
+      
+      // Use a single query with joins to get all students enrolled in trainer's courses
+      const studentsQuery = await db
+        .select({
+          id: users.id,
+          username: users.username,
+          email: users.email,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          role: users.role,
+          profileImageUrl: users.profileImageUrl,
+          createdAt: users.createdAt,
+          updatedAt: users.updatedAt,
+        })
+        .from(users)
+        .innerJoin(enrollments, eq(users.id, enrollments.studentId))
+        .innerJoin(trainerAssignments, eq(enrollments.courseId, trainerAssignments.courseId))
+        .where(and(
+          eq(trainerAssignments.trainerId, trainerId),
+          eq(users.role, 'student')
+        ))
+        .groupBy(users.id, users.username, users.email, users.firstName, users.lastName, users.role, users.profileImageUrl, users.createdAt, users.updatedAt);
+      
+      res.json(studentsQuery);
+    } catch (error) {
+      console.error("Error fetching trainer students:", error);
+      res.status(500).json({ message: "Failed to fetch students" });
     }
   });
 
@@ -926,6 +1557,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching course students:", error);
       res.status(500).json({ message: "Failed to fetch students" });
+    }
+  });
+
+  // Trainer: Get course modules
+  app.get("/api/trainer/courses/:courseId/modules", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
+    try {
+      const { courseId } = req.params;
+      const trainerId = req.currentUser.id;
+      
+      console.log('Trainer requesting modules:', { trainerId, courseId });
+      
+      // Verify trainer is assigned to this course
+      const assignment = await db.select().from(trainerAssignments)
+        .where(and(
+          eq(trainerAssignments.trainerId, trainerId),
+          eq(trainerAssignments.courseId, courseId)
+        ));
+      
+      console.log('Trainer assignments found:', assignment);
+      
+      if (assignment.length === 0) {
+        console.log('Trainer not assigned to course, checking all assignments for trainer');
+        const allAssignments = await db.select().from(trainerAssignments)
+          .where(eq(trainerAssignments.trainerId, trainerId));
+        console.log('All trainer assignments:', allAssignments);
+        return res.status(403).json({ message: "You are not assigned to this course" });
+      }
+      
+      const courseModules = await storage.getModulesByCourse(courseId);
+      console.log('Modules found:', courseModules);
+      res.json(courseModules);
+    } catch (error) {
+      console.error("Error fetching course modules:", error);
+      res.status(500).json({ message: "Failed to fetch modules" });
     }
   });
 
@@ -974,18 +1639,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     dest: 'uploads/',
     limits: { fileSize: 100 * 1024 * 1024 }, // 100MB limit
     fileFilter: (req, file, cb) => {
-      // Accept videos and documents
+      // Accept videos, documents, and images
       const allowedTypes = [
         'video/mp4', 'video/mpeg', 'video/quicktime', 'video/x-msvideo', 'video/webm',
         'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-        'text/plain'
+        'text/plain',
+        'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'
       ];
       
       if (allowedTypes.includes(file.mimetype)) {
         cb(null, true);
       } else {
-        cb(new Error('Invalid file type. Only videos and documents are allowed.'));
+        cb(new Error('Invalid file type. Only videos, documents, and images are allowed.'));
       }
     }
   });
@@ -1023,6 +1689,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fileSize: req.file.size,
         expiresAt,
       });
+      
+      // Log activity
+      await ActivityLogger.logMaterialUploaded(trainerId, material.id, data.type, data.title, req);
 
       res.json(material);
     } catch (error) {
@@ -1129,6 +1798,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Assign to each student
       const assignments = await Promise.all(
         studentIds.map(studentId => storage.assignMaterialToStudent(materialId, studentId))
+      );
+      
+      // Log activity for each assignment
+      await Promise.all(
+        studentIds.map(studentId => 
+          ActivityLogger.logMaterialAssigned(req.currentUser.id, studentId, materialId, material.title, req)
+        )
       );
 
       res.json({ 
@@ -1261,7 +1937,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       const { trainerId, courseId } = assignSchema.parse(req.body);
-      const adminId = req.currentUser.id;
+      const adminId = req.currentUser?.id || req.session?.userId;
 
       // Verify trainer exists and has trainer role
       const trainer = await storage.getUser(trainerId);
@@ -1326,7 +2002,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       const { studentId, courseId } = enrollSchema.parse(req.body);
-      const enrolledBy = req.currentUser.id;
+      const enrolledBy = req.currentUser?.id || req.session?.userId;
 
       // Verify student exists and has student role
       const student = await storage.getUser(studentId);
@@ -1465,6 +2141,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message,
         status: 'pending',
       });
+      
+      // Log activity
+      await ActivityLogger.logEnrollmentRequestCreated(studentId, request.id, course.title, req);
 
       res.json({ 
         message: `Enrollment request sent for "${course.title}"`,
@@ -1493,7 +2172,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           return {
             ...request,
-            student: student ? { id: student.id, username: student.username, email: student.email } : null,
+            student: student ? { 
+              id: student.id, 
+              username: student.username, 
+              email: student.email,
+              firstName: student.firstName,
+              lastName: student.lastName,
+              phoneNumber: student.phoneNumber,
+              profileImageUrl: student.profileImageUrl
+            } : null,
             course: course ? { id: course.id, title: course.title } : null,
             reviewer: reviewer ? { id: reviewer.id, username: reviewer.username } : null,
           };
@@ -1520,7 +2207,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           return {
             ...request,
-            student: student ? { id: student.id, username: student.username, email: student.email } : null,
+            student: student ? { 
+              id: student.id, 
+              username: student.username, 
+              email: student.email,
+              firstName: student.firstName,
+              lastName: student.lastName,
+              phoneNumber: student.phoneNumber,
+              profileImageUrl: student.profileImageUrl
+            } : null,
             course: course ? { id: course.id, title: course.title } : null,
           };
         })
@@ -1564,9 +2259,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/enrollment-requests/:id/approve", isAuthenticated, requireRole(['admin', 'sales_consultant']), async (req: any, res) => {
     try {
       const { id } = req.params;
-      const reviewerId = req.currentUser.id;
+      const reviewerId = req.currentUser?.id || req.session?.userId;
 
       const request = await storage.approveEnrollmentRequest(id, reviewerId, reviewerId);
+      
+      // Log activity
+      const course = await storage.getCourse(request.courseId);
+      await ActivityLogger.logEnrollmentRequestApproved(
+        reviewerId,
+        request.studentId,
+        id,
+        course?.title || 'Unknown Course',
+        req
+      );
       
       res.json({ 
         message: "Enrollment request approved",
@@ -1583,9 +2288,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const { message } = req.body;
-      const reviewerId = req.currentUser.id;
+      const reviewerId = req.currentUser?.id || req.session?.userId;
 
       const request = await storage.rejectEnrollmentRequest(id, reviewerId, message);
+      
+      // Log activity
+      const course = await storage.getCourse(request.courseId);
+      await ActivityLogger.logEnrollmentRequestRejected(
+        reviewerId,
+        request.studentId,
+        id,
+        course?.title || 'Unknown Course',
+        req
+      );
       
       res.json({ 
         message: "Enrollment request rejected",
@@ -1606,6 +2321,316 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching courses by category:", error);
       res.status(500).json({ message: "Failed to fetch courses" });
+    }
+  });
+
+  // ============ POSTS ROUTES ============
+  
+  // Get approved posts (all authenticated users)
+  app.get("/api/posts", isAuthenticated, async (req: any, res) => {
+    try {
+      const approvedPosts = await storage.getApprovedPosts();
+      
+      const postsWithDetails = await Promise.all(
+        approvedPosts.map(async (post) => {
+          // Fetch fresh user data for post author
+          const author = await storage.getUser(post.authorId);
+          const comments = await storage.getCommentsByPost(post.id);
+          const likes = await storage.getLikesByPost(post.id);
+          const userLiked = likes.some(like => like.userId === req.session?.userId);
+          
+          const commentsWithAuthors = await Promise.all(
+            comments.map(async (comment) => {
+              // Fetch fresh user data for comment author
+              const commentAuthor = await storage.getUser(comment.authorId);
+              return {
+                ...comment,
+                authorName: `${commentAuthor?.firstName || ''} ${commentAuthor?.lastName || ''}`.trim() || commentAuthor?.username || 'Unknown',
+                authorRole: commentAuthor?.role || 'student',
+                authorProfileImage: commentAuthor?.profileImageUrl,
+              };
+            })
+          );
+          
+          return {
+            ...post,
+            authorName: `${author?.firstName || ''} ${author?.lastName || ''}`.trim() || author?.username || 'Unknown',
+            authorRole: author?.role || 'student',
+            authorProfileImage: author?.profileImageUrl,
+            comments: commentsWithAuthors,
+            likesCount: likes.length,
+            userLiked,
+          };
+        })
+      );
+      
+      res.json(postsWithDetails);
+    } catch (error) {
+      console.error("Error fetching posts:", error);
+      res.status(500).json({ message: "Failed to fetch posts" });
+    }
+  });
+
+  // Upload post image
+  app.post("/api/posts/upload-image", isAuthenticated, upload.single('image'), async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No image uploaded" });
+      }
+
+      // Calculate expiration date (20 days from now)
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 20);
+
+      const imageUrl = `/uploads/${req.file.filename}`;
+      
+      res.json({ 
+        success: true,
+        imageUrl,
+        expiresAt: expiresAt.toISOString()
+      });
+    } catch (error) {
+      if (req.file) {
+        await fs.unlink(req.file.path).catch(() => {});
+      }
+      console.error("Error uploading image:", error);
+      res.status(500).json({ success: false, message: "Failed to upload image" });
+    }
+  });
+
+  // Create post (all authenticated users)
+  app.post("/api/posts", isAuthenticated, async (req: any, res) => {
+    try {
+      const { content, imageUrl, imageExpiresAt } = req.body;
+      const userId = req.session?.userId;
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      if (!content && !imageUrl) {
+        return res.status(400).json({ message: "Post must have content or image" });
+      }
+      
+      const postData: any = {
+        authorId: userId,
+        content: content || null,
+        imageUrl: imageUrl || null,
+        status: 'pending'
+      };
+      
+      // If image is uploaded, set expiration date
+      if (imageUrl && imageExpiresAt) {
+        postData.imageExpiresAt = new Date(imageExpiresAt);
+      }
+      
+      const post = await storage.createPost(postData);
+      
+      // Log activity
+      await ActivityLogger.logPostCreated(userId, post.id, req);
+      
+      res.json(post);
+    } catch (error) {
+      console.error("Error creating post:", error);
+      res.status(500).json({ message: "Failed to create post" });
+    }
+  });
+
+  // Add comment to post (all authenticated users)
+  app.post("/api/posts/:postId/comments", isAuthenticated, async (req: any, res) => {
+    try {
+      const { postId } = req.params;
+      const commentData = {
+        ...req.body,
+        postId,
+        authorId: req.session?.userId,
+      };
+      
+      const comment = await storage.createComment(commentData);
+      
+      // Log activity
+      await ActivityLogger.logCommentCreated(req.session?.userId, comment.id, postId, req);
+      
+      res.json(comment);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid input", errors: error.errors });
+      }
+      console.error("Error creating comment:", error);
+      res.status(500).json({ message: "Failed to create comment" });
+    }
+  });
+
+  // Toggle like on post (all authenticated users)
+  app.post("/api/posts/:postId/like", isAuthenticated, async (req: any, res) => {
+    try {
+      const { postId } = req.params;
+      const userId = req.session?.userId;
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const result = await storage.toggleLike(postId, userId);
+      
+      // Log activity
+      await ActivityLogger.logPostLiked(userId, postId, result.liked, req);
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Error toggling like:", error);
+      res.status(500).json({ message: "Failed to toggle like" });
+    }
+  });
+
+  // Admin: Get pending posts
+  app.get("/api/admin/posts/pending", isAuthenticated, requireRole(['admin']), async (req: any, res) => {
+    try {
+      const pendingPosts = await storage.getPendingPosts();
+      
+      const postsWithAuthors = await Promise.all(
+        pendingPosts.map(async (post) => {
+          // Fetch fresh user data for post author
+          const author = await storage.getUser(post.authorId);
+          return {
+            ...post,
+            authorName: `${author?.firstName || ''} ${author?.lastName || ''}`.trim() || author?.username || 'Unknown',
+            authorRole: author?.role || 'student',
+            authorProfileImage: author?.profileImageUrl,
+          };
+        })
+      );
+      
+      res.json(postsWithAuthors);
+    } catch (error) {
+      console.error("Error fetching pending posts:", error);
+      res.status(500).json({ message: "Failed to fetch pending posts" });
+    }
+  });
+
+  // Admin: Approve post
+  app.patch("/api/admin/posts/:id/approve", isAuthenticated, requireRole(['admin']), async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const approverId = req.session?.userId;
+      
+      if (!approverId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const approvedPost = await storage.approvePost(id, approverId);
+      
+      // Log activity
+      await ActivityLogger.logPostApproved(approverId, approvedPost.authorId, id, req);
+      
+      res.json(approvedPost);
+    } catch (error) {
+      console.error("Error approving post:", error);
+      res.status(500).json({ message: "Failed to approve post" });
+    }
+  });
+
+  // Admin: Reject post
+  app.patch("/api/admin/posts/:id/reject", isAuthenticated, requireRole(['admin']), async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      
+      const rejectedPost = await storage.rejectPost(id);
+      
+      // Log activity
+      const rejectedBy = req.session?.userId;
+      if (rejectedBy) {
+        await ActivityLogger.logPostRejected(rejectedBy, rejectedPost.authorId, id, req);
+      }
+      
+      res.json(rejectedPost);
+    } catch (error) {
+      console.error("Error rejecting post:", error);
+      res.status(500).json({ message: "Failed to reject post" });
+    }
+  });
+
+  // Admin: Cleanup expired post images
+  app.post("/api/admin/posts/cleanup-images", isAuthenticated, requireRole(['admin']), async (req, res) => {
+    try {
+      const deletedCount = await storage.deleteExpiredPostImages();
+      res.json({ 
+        message: `Cleaned up ${deletedCount} expired post images`,
+        count: deletedCount 
+      });
+    } catch (error) {
+      console.error("Error cleaning up expired post images:", error);
+      res.status(500).json({ message: "Failed to cleanup expired images" });
+    }
+  });
+
+  // ============ PROFILE ROUTES ============
+  
+  // Upload profile image
+  app.post("/api/profile/upload-image", isAuthenticated, upload.single('image'), async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No image uploaded" });
+      }
+
+      const imageUrl = `/uploads/${req.file.filename}`;
+      
+      res.json({ 
+        success: true,
+        imageUrl
+      });
+    } catch (error) {
+      if (req.file) {
+        await fs.unlink(req.file.path).catch(() => {});
+      }
+      console.error("Error uploading profile image:", error);
+      res.status(500).json({ success: false, message: "Failed to upload image" });
+    }
+  });
+
+  // Update user profile
+  app.put("/api/profile", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const updateSchema = z.object({
+        firstName: z.string().optional(),
+        lastName: z.string().optional(),
+        email: z.string().email().optional(),
+        phoneNumber: z.string().optional(),
+        profileImageUrl: z.string().optional(),
+        education: z.array(z.object({
+          degree: z.string(),
+          institution: z.string(),
+          year: z.string(),
+          description: z.string().optional(),
+        })).optional(),
+        workExperience: z.array(z.object({
+          position: z.string(),
+          company: z.string(),
+          duration: z.string(),
+          description: z.string().optional(),
+        })).optional(),
+      });
+
+      const updateData = updateSchema.parse(req.body);
+      
+      const updatedUser = await storage.updateUserProfile(userId, updateData);
+      const { passwordHash, ...userWithoutPassword } = updatedUser;
+      
+      // Log activity
+      await ActivityLogger.logProfileUpdated(userId, req);
+      
+      res.json(userWithoutPassword);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid input", errors: error.errors });
+      }
+      console.error("Error updating profile:", error);
+      res.status(500).json({ message: "Failed to update profile" });
     }
   });
 

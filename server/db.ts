@@ -1,19 +1,8 @@
-import { Pool, neonConfig } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-serverless';
-import ws from "ws";
+import pg from 'pg';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from "@shared/schema";
 
-// Create custom WebSocket constructor that ignores SSL certificate errors
-// This is needed for Replit's development environment
-class CustomWebSocket extends ws {
-  constructor(url: string, protocols?: string | string[]) {
-    super(url, protocols, {
-      rejectUnauthorized: false
-    });
-  }
-}
-
-neonConfig.webSocketConstructor = CustomWebSocket as any;
+const { Pool } = pg;
 
 if (!process.env.DATABASE_URL) {
   throw new Error(
@@ -21,5 +10,8 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-export const db = drizzle({ client: pool, schema });
+export const pool = new Pool({ 
+  connectionString: process.env.DATABASE_URL 
+});
+
+export const db = drizzle(pool, { schema });

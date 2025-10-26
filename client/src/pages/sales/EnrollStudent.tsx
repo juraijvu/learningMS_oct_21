@@ -8,6 +8,7 @@ import { UserPlus } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { PageLayout } from "@/components/PageLayout";
 
 export default function EnrollStudent() {
   const { toast } = useToast();
@@ -69,29 +70,38 @@ export default function EnrollStudent() {
 
   if (loadingStudents || loadingCourses) {
     return (
-      <div className="p-6 space-y-6">
-        <Skeleton className="h-9 w-64" />
-        <Skeleton className="h-96 w-full" />
-      </div>
+      <PageLayout title="Enroll Student" subtitle="Enroll students in available courses">
+        <Card className="max-w-2xl bg-white/90 backdrop-blur-sm border-0 shadow-xl rounded-2xl overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+            <Skeleton className="h-6 w-48 bg-white/20" />
+          </CardHeader>
+          <CardContent className="p-6">
+            <Skeleton className="h-96 w-full" />
+          </CardContent>
+        </Card>
+      </PageLayout>
     );
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <h1 className="text-3xl font-semibold">Enroll Student</h1>
-
-      <Card className="max-w-2xl">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <UserPlus className="h-5 w-5" />
+    <PageLayout 
+      title="Enroll Student" 
+      subtitle="Enroll students in available courses"
+    >
+      <Card className="max-w-2xl bg-white/90 backdrop-blur-sm border-0 shadow-xl rounded-2xl overflow-hidden">
+        <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+          <CardTitle className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+              <UserPlus className="h-5 w-5" />
+            </div>
             Student Enrollment
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label>Select Student</Label>
+        <CardContent className="p-6 space-y-6">
+          <div className="space-y-3">
+            <Label className="text-blue-900 font-bold">Select Student</Label>
             <Select value={selectedStudent} onValueChange={setSelectedStudent}>
-              <SelectTrigger data-testid="select-student">
+              <SelectTrigger data-testid="select-student" className="border-blue-300 focus:border-blue-500">
                 <SelectValue placeholder="Choose a student" />
               </SelectTrigger>
               <SelectContent>
@@ -104,10 +114,10 @@ export default function EnrollStudent() {
             </Select>
           </div>
 
-          <div className="space-y-2">
-            <Label>Select Course</Label>
+          <div className="space-y-3">
+            <Label className="text-blue-900 font-bold">Select Course</Label>
             <Select value={selectedCourse} onValueChange={setSelectedCourse}>
-              <SelectTrigger data-testid="select-course">
+              <SelectTrigger data-testid="select-course" className="border-blue-300 focus:border-blue-500">
                 <SelectValue placeholder="Choose a course" />
               </SelectTrigger>
               <SelectContent>
@@ -122,24 +132,24 @@ export default function EnrollStudent() {
 
           <Button 
             onClick={handleEnrollStudent}
-            className="w-full" 
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 text-lg" 
             disabled={enrollStudentMutation.isPending || !selectedStudent || !selectedCourse}
             data-testid="button-enroll"
           >
             {enrollStudentMutation.isPending ? (
               <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
                 Enrolling...
               </>
             ) : (
               <>
-                <UserPlus className="h-4 w-4 mr-2" />
+                <UserPlus className="h-5 w-5 mr-2" />
                 Enroll Student
               </>
             )}
           </Button>
         </CardContent>
       </Card>
-    </div>
+    </PageLayout>
   );
 }

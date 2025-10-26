@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Upload, FileText, Video, Download, Trash2, UserPlus, Calendar } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { PageLayout } from "@/components/PageLayout";
 import type { ClassMaterial, Course, User } from "@shared/schema";
 import { format } from "date-fns";
 
@@ -41,11 +42,9 @@ export default function ClassMaterials() {
   });
 
   // Fetch students for assignment
-  const { data: allUsers } = useQuery<User[]>({
-    queryKey: ["/api/users"],
+  const { data: students } = useQuery<User[]>({
+    queryKey: ["/api/trainer/students"],
   });
-
-  const students = allUsers?.filter(u => u.role === 'student') || [];
 
   // Upload mutation
   const uploadMutation = useMutation({
@@ -194,16 +193,21 @@ export default function ClassMaterials() {
   };
 
   if (materialsLoading) {
-    return <div className="p-8" data-testid="loading-materials">Loading materials...</div>;
+    return (
+      <PageLayout title="Class Materials" subtitle="Upload and manage course materials for your students">
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-blue-600">Loading materials...</p>
+        </div>
+      </PageLayout>
+    );
   }
 
   return (
-    <div className="p-8" data-testid="trainer-materials-page">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold" data-testid="page-title">Class Materials</h1>
-          <p className="text-muted-foreground mt-1">Upload and manage course materials for your students</p>
-        </div>
+    <PageLayout 
+      title="Class Materials" 
+      subtitle="Upload and manage course materials for your students"
+      action={
         <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
           <DialogTrigger asChild>
             <Button data-testid="button-upload-material">
@@ -298,9 +302,9 @@ export default function ClassMaterials() {
             </div>
           </DialogContent>
         </Dialog>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      }
+    >
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {materials?.map((material) => {
           const daysLeft = daysUntilExpiry(material.expiresAt);
           const isExpiring = daysLeft <= 3;
@@ -322,16 +326,16 @@ export default function ClassMaterials() {
                   <CardDescription>{material.description}</CardDescription>
                 )}
               </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <FileText className="h-4 w-4" />
-                    <span>{material.fileName} ({formatFileSize(material.fileSize)})</span>
+              <CardContent className="p-6">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 text-sm bg-blue-50 p-3 rounded-xl">
+                    <FileText className="h-4 w-4 text-blue-600" />
+                    <span className="text-blue-700 font-medium">{material.fileName} ({formatFileSize(material.fileSize)})</span>
                   </div>
                   
-                  <div className={`flex items-center gap-2 text-sm ${isExpiring ? 'text-orange-500' : 'text-muted-foreground'}`}>
+                  <div className={`flex items-center gap-2 text-sm p-3 rounded-xl ${isExpiring ? 'bg-orange-50 text-orange-700' : 'bg-green-50 text-green-700'}`}>
                     <Calendar className="h-4 w-4" />
-                    <span>
+                    <span className="font-medium">
                       {daysLeft > 0 ? `Expires in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}` : 'Expired'}
                     </span>
                   </div>
@@ -341,6 +345,7 @@ export default function ClassMaterials() {
                       size="sm"
                       variant="outline"
                       onClick={() => handleDownload(material)}
+                      className="border-blue-300 text-blue-700 hover:bg-blue-50"
                       data-testid={`button-download-${material.id}`}
                     >
                       <Download className="h-4 w-4 mr-1" />
@@ -353,6 +358,7 @@ export default function ClassMaterials() {
                         setSelectedMaterial(material);
                         setAssignDialogOpen(true);
                       }}
+                      className="border-green-300 text-green-700 hover:bg-green-50"
                       data-testid={`button-assign-${material.id}`}
                     >
                       <UserPlus className="h-4 w-4 mr-1" />
@@ -360,8 +366,9 @@ export default function ClassMaterials() {
                     </Button>
                     <Button
                       size="sm"
-                      variant="destructive"
+                      variant="outline"
                       onClick={() => handleDelete(material.id)}
+                      className="border-red-300 text-red-700 hover:bg-red-50"
                       data-testid={`button-delete-${material.id}`}
                     >
                       <Trash2 className="h-4 w-4" />
@@ -406,28 +413,35 @@ export default function ClassMaterials() {
             
             <div className="space-y-2 max-h-[300px] overflow-y-auto">
               <Label>Select Students:</Label>
-              {students.map((student) => (
-                <div key={student.id} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`student-${student.id}`}
-                    checked={selectedStudents.includes(student.id)}
-                    onCheckedChange={(checked) => {
-                      if (checked) {
-                        setSelectedStudents([...selectedStudents, student.id]);
-                      } else {
-                        setSelectedStudents(selectedStudents.filter(id => id !== student.id));
-                      }
-                    }}
-                    data-testid={`checkbox-student-${student.id}`}
-                  />
-                  <label
-                    htmlFor={`student-${student.id}`}
-                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                  >
-                    {student.username} {student.firstName && `(${student.firstName} ${student.lastName})`}
-                  </label>
+              {students && students.length > 0 ? (
+                students.map((student) => (
+                  <div key={student.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`student-${student.id}`}
+                      checked={selectedStudents.includes(student.id)}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setSelectedStudents([...selectedStudents, student.id]);
+                        } else {
+                          setSelectedStudents(selectedStudents.filter(id => id !== student.id));
+                        }
+                      }}
+                      data-testid={`checkbox-student-${student.id}`}
+                    />
+                    <label
+                      htmlFor={`student-${student.id}`}
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                      {student.username} {student.firstName && `(${student.firstName} ${student.lastName})`}
+                    </label>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-4 text-muted-foreground">
+                  <p>No students found in your assigned courses.</p>
+                  <p className="text-sm mt-1">Students must be enrolled in your courses to assign materials.</p>
                 </div>
-              ))}
+              )}
             </div>
 
             <Button
@@ -441,6 +455,6 @@ export default function ClassMaterials() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageLayout>
   );
 }

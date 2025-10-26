@@ -1,26 +1,30 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, useParams } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, Clock, ArrowLeft } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Calendar, Clock, ArrowLeft, AlertTriangle } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { z } from "zod";
+import { generateTimeSlots, isValidTimeSlot } from "@/lib/timeSlots";
 
 const scheduleSchema = z.object({
   courseId: z.string().min(1, "Course is required"),
-  studentId: z.string().optional(),
-  trainerId: z.string().optional(),
+  studentId: z.string().min(1, "Student is required"),
+  trainerId: z.string().min(1, "Trainer is required"),
   weekStart: z.string().min(1, "Week start date is required"),
-  dayOfWeek: z.string().min(1, "Day of week is required"),
-  timeSlot: z.string().min(1, "Time slot is required"),
+  daysOfWeek: z.array(z.number()).min(1, "At least one day must be selected").max(3, "Maximum 3 days allowed"),
+  timeSlot: z.string().min(1, "Time slot is required").refine(isValidTimeSlot, {
+    message: "Invalid time slot format or time range"
+  }),
 });
 
 interface Course {
@@ -37,6 +41,10 @@ interface User {
 
 export default function SalesCreateSchedule() {
   const { toast } = useToast();
+  const params = useParams();
+  const scheduleId = params.id;
+  const isEditing = !!scheduleId;
+  const timeSlots = generateTimeSlots();
 
   const { data: courses } = useQuery<Course[]>({
     queryKey: ['/api/courses'],
@@ -50,6 +58,16 @@ export default function SalesCreateSchedule() {
     queryKey: ['/api/admin/trainers'],
   });
 
+  const { data: existingSchedule } = useQuery({
+    queryKey: ['/api/sales/schedules', scheduleId],
+    queryFn: async () => {
+      if (!scheduleId) return null;
+      const response = await apiRequest('GET', `/api/sales/schedules/${scheduleId}`);
+      return response.json();
+    },
+    enabled: isEditing,
+  });
+
   const form = useForm<z.infer<typeof scheduleSchema>>({
     resolver: zodResolver(scheduleSchema),
     defaultValues: {
@@ -57,29 +75,55 @@ export default function SalesCreateSchedule() {
       studentId: "",
       trainerId: "",
       weekStart: "",
-      dayOfWeek: "",
+      daysOfWeek: [],
       timeSlot: "",
     },
   });
 
   const createScheduleMutation = useMutation({
-    mutationFn: (data: z.infer<typeof scheduleSchema>) =>
-      apiRequest('POST', '/api/sales/schedules', {
-        ...data,
-        dayOfWeek: parseInt(data.dayOfWeek),
-      }),
+    mutationFn: async (data: z.infer<typeof scheduleSchema>) => {
+      if (isEditing) {
+        // Update existing schedule
+        const response = await apiRequest("PUT", `/api/sales/schedules/${scheduleId}`, {
+          courseId: data.courseId,
+          studentId: data.studentId,
+          trainerId: data.trainerId,
+          weekStart: data.weekStart,
+          dayOfWeek: data.daysOfWeek[0], // Take first selected day for single schedule
+          timeSlot: data.timeSlot,
+        });
+        return response.json();
+      } else {
+        // Create multiple schedule entries for each selected day
+        const schedules = await Promise.all(
+          data.daysOfWeek.map(async (dayOfWeek) => {
+            const response = await apiRequest("POST", "/api/sales/schedules", {
+              courseId: data.courseId,
+              studentId: data.studentId,
+              trainerId: data.trainerId,
+              weekStart: data.weekStart,
+              dayOfWeek,
+              timeSlot: data.timeSlot,
+            });
+            return response.json();
+          })
+        );
+        return schedules;
+      }
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/sales/schedules'] });
       toast({
         title: "Success!",
-        description: "Schedule created successfully.",
+        description: isEditing ? "Schedule updated successfully." : "Schedule created successfully.",
       });
-      form.reset();
+      if (!isEditing) form.reset();
     },
     onError: (error: any) => {
+      const errorMessage = error.message || (isEditing ? "Failed to update schedule." : "Failed to create schedule.");
       toast({
-        title: "Error",
-        description: error.message || "Failed to create schedule.",
+        title: error.message?.includes("Trainer is busy") ? "Scheduling Conflict" : "Error",
+        description: errorMessage,
         variant: "destructive",
       });
     },
@@ -88,6 +132,20 @@ export default function SalesCreateSchedule() {
   const onSubmit = (data: z.infer<typeof scheduleSchema>) => {
     createScheduleMutation.mutate(data);
   };
+
+  // Prefill form when editing
+  useEffect(() => {
+    if (existingSchedule && isEditing) {
+      form.reset({
+        courseId: existingSchedule.courseId,
+        studentId: existingSchedule.studentId,
+        trainerId: existingSchedule.trainerId,
+        weekStart: existingSchedule.weekStart,
+        daysOfWeek: [existingSchedule.dayOfWeek],
+        timeSlot: existingSchedule.timeSlot,
+      });
+    }
+  }, [existingSchedule, isEditing, form]);
 
   const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -100,8 +158,8 @@ export default function SalesCreateSchedule() {
           </Link>
         </Button>
         <div>
-          <h1 className="text-3xl font-semibold">Create Schedule</h1>
-          <p className="text-muted-foreground mt-1">Add a new class schedule</p>
+          <h1 className="text-3xl font-semibold">{isEditing ? 'Edit Schedule' : 'Create Schedule'}</h1>
+          <p className="text-muted-foreground mt-1">{isEditing ? 'Update the class schedule' : 'Add a new class schedule'}</p>
         </div>
       </div>
 
@@ -111,7 +169,23 @@ export default function SalesCreateSchedule() {
             <Calendar className="h-5 w-5" />
             Schedule Details
           </CardTitle>
-          <CardDescription>Fill in the details for the new schedule</CardDescription>
+          <CardDescription>
+            Fill in the details for the new schedule. Multiple students can be scheduled for the same course at the same time (batch scheduling).
+          </CardDescription>
+          <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+              <div className="text-sm text-blue-800">
+                <p className="font-medium mb-1">Scheduling Rules:</p>
+                <ul className="space-y-1 text-xs">
+                  <li>• Classes are 2 hours long with 20-minute interval start times</li>
+                  <li>• Multiple students can attend the same course at the same time</li>
+                  <li>• Trainers cannot teach different courses at overlapping times</li>
+                  <li>• Available hours: 9:00 AM to 9:00 PM daily</li>
+                </ul>
+              </div>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -146,7 +220,7 @@ export default function SalesCreateSchedule() {
                 name="studentId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Student (Optional)</FormLabel>
+                    <FormLabel>Student *</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger data-testid="select-student">
@@ -171,7 +245,7 @@ export default function SalesCreateSchedule() {
                 name="trainerId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Trainer (Optional)</FormLabel>
+                    <FormLabel>Trainer *</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger data-testid="select-trainer">
@@ -207,24 +281,39 @@ export default function SalesCreateSchedule() {
 
               <FormField
                 control={form.control}
-                name="dayOfWeek"
+                name="daysOfWeek"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Day of Week</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger data-testid="select-day">
-                          <SelectValue placeholder="Select day" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {dayNames.map((day, index) => (
-                          <SelectItem key={index} value={index.toString()}>
-                            {day}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormLabel>Days of Week (Select 1-3 days)</FormLabel>
+                    <div className="grid grid-cols-7 gap-2">
+                      {dayNames.map((day, index) => {
+                        const dayValue = index; // Sunday = 0, Saturday = 6
+                        return (
+                          <div key={dayValue} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`day-${dayValue}`}
+                              checked={field.value?.includes(dayValue)}
+                              onCheckedChange={(checked) => {
+                                const currentDays = field.value || [];
+                                if (checked) {
+                                  if (currentDays.length < 3) {
+                                    field.onChange([...currentDays, dayValue].sort());
+                                  }
+                                } else {
+                                  field.onChange(currentDays.filter(d => d !== dayValue));
+                                }
+                              }}
+                            />
+                            <Label htmlFor={`day-${dayValue}`} className="text-sm">
+                              {day.slice(0, 3)}
+                            </Label>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Selected: {field.value?.length || 0}/3 days
+                    </p>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -235,14 +324,24 @@ export default function SalesCreateSchedule() {
                 name="timeSlot"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Time Slot</FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        placeholder="e.g., 9:00 AM - 10:00 AM"
-                        data-testid="input-time-slot"
-                      />
-                    </FormControl>
+                    <FormLabel>Time Slot (2-hour duration)</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-time-slot">
+                          <SelectValue placeholder="Select a time slot" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent className="max-h-60">
+                        {timeSlots.map((slot) => (
+                          <SelectItem key={slot.value} value={slot.value}>
+                            {slot.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Available from 9:00 AM to 9:00 PM (20-minute intervals, 2-hour classes)
+                    </p>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -255,7 +354,7 @@ export default function SalesCreateSchedule() {
                 data-testid="button-create-schedule"
               >
                 <Clock className="h-4 w-4 mr-2" />
-                {createScheduleMutation.isPending ? "Creating..." : "Create Schedule"}
+                {createScheduleMutation.isPending ? (isEditing ? "Updating..." : "Creating...") : (isEditing ? "Update Schedule" : "Create Schedule")}
               </Button>
             </form>
           </Form>

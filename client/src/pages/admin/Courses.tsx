@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { PageLayout } from "@/components/PageLayout";
 import type { Course } from "@shared/schema";
 
 const COURSE_CATEGORIES = [
@@ -89,14 +90,10 @@ export default function CoursesManagement() {
 
   if (isLoading) {
     return (
-      <div className="p-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <Skeleton className="h-9 w-48" />
-          <Skeleton className="h-10 w-32" />
-        </div>
+      <PageLayout title="Course Management" subtitle="Loading courses...">
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {[...Array(6)].map((_, i) => (
-            <Card key={i}>
+            <Card key={i} className="bg-white/90 backdrop-blur-sm border-0 shadow-xl rounded-2xl">
               <CardHeader>
                 <Skeleton className="h-6 w-3/4" />
                 <Skeleton className="h-4 w-full mt-2" />
@@ -104,21 +101,18 @@ export default function CoursesManagement() {
             </Card>
           ))}
         </div>
-      </div>
+      </PageLayout>
     );
   }
 
-  return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-semibold">Course Management</h1>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button data-testid="button-create-course">
-              <Plus className="mr-2 h-4 w-4" />
-              Create Course
-            </Button>
-          </DialogTrigger>
+  const createButton = (
+    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <DialogTrigger asChild>
+        <Button className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold px-6 py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300" data-testid="button-create-course">
+          <Plus className="mr-2 h-5 w-5" />
+          Create Course
+        </Button>
+      </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Create New Course</DialogTitle>
@@ -223,21 +217,29 @@ export default function CoursesManagement() {
               </Button>
             </div>
           </DialogContent>
-        </Dialog>
-      </div>
+    </Dialog>
+  );
 
+  return (
+    <PageLayout 
+      title="Course Management" 
+      subtitle="Create and manage all courses in the system"
+      action={createButton}
+    >
       {courses && courses.length === 0 ? (
-        <Card>
+        <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-xl rounded-2xl">
           <CardContent className="flex flex-col items-center justify-center py-12">
-            <BookOpen className="h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-muted-foreground text-center">No courses created yet</p>
-            <p className="text-sm text-muted-foreground text-center mt-1">Create your first course to get started</p>
+            <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+              <BookOpen className="h-10 w-10 text-blue-500" />
+            </div>
+            <p className="text-blue-600 font-semibold text-center">No courses created yet</p>
+            <p className="text-blue-500 text-center mt-1">Create your first course to get started</p>
           </CardContent>
         </Card>
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {courses?.map((course) => (
-            <Card key={course.id} className="hover-elevate overflow-hidden" data-testid={`card-course-${course.id}`}>
+            <Card key={course.id} className="bg-white/90 backdrop-blur-sm border-0 shadow-xl rounded-2xl overflow-hidden hover:shadow-2xl hover:-translate-y-1 transition-all duration-300" data-testid={`card-course-${course.id}`}>
               {course.imageUrl && (
                 <div className="w-full h-48 overflow-hidden bg-muted">
                   <img 
@@ -250,44 +252,44 @@ export default function CoursesManagement() {
                   />
                 </div>
               )}
-              <CardHeader>
+              <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
                 <div className="flex items-start gap-3">
                   {!course.imageUrl && (
-                    <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-primary/10">
-                      <BookOpen className="h-6 w-6 text-primary" />
+                    <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-white/20">
+                      <BookOpen className="h-6 w-6 text-white" />
                     </div>
                   )}
                   <div className="flex-1">
-                    <CardTitle className="text-lg">{course.title}</CardTitle>
+                    <CardTitle className="text-lg font-bold text-white">{course.title}</CardTitle>
                     {course.category && (
-                      <Badge variant="secondary" className="mt-1">
+                      <Badge variant="secondary" className="mt-2 bg-white/20 text-white border-white/30">
                         <Tag className="h-3 w-3 mr-1" />
                         {course.category}
                       </Badge>
                     )}
-                    <CardDescription className="mt-2 line-clamp-2">
+                    <CardDescription className="mt-2 line-clamp-2 text-blue-100">
                       {course.description}
                     </CardDescription>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-6">
                 {course.pdfUrl && (
                   <a 
                     href={course.pdfUrl} 
                     target="_blank" 
                     rel="noopener noreferrer"
-                    className="inline-flex items-center text-sm text-primary hover:underline"
+                    className="inline-flex items-center text-sm text-blue-600 hover:text-blue-800 font-medium hover:underline"
                   >
                     <FileText className="h-4 w-4 mr-1" />
                     Course PDF
                   </a>
                 )}
                 <div className="mt-4 flex gap-2">
-                  <Button variant="outline" size="sm" asChild className="flex-1">
+                  <Button variant="outline" size="sm" asChild className="flex-1 border-blue-200 text-blue-700 hover:bg-blue-50">
                     <a href={`/courses/${course.id}/modules`}>Manage Modules</a>
                   </Button>
-                  <Button variant="outline" size="sm" asChild className="flex-1">
+                  <Button variant="outline" size="sm" asChild className="flex-1 border-blue-200 text-blue-700 hover:bg-blue-50">
                     <a href={`/courses/${course.id}/assign`}>Assign Trainers</a>
                   </Button>
                 </div>
@@ -296,6 +298,6 @@ export default function CoursesManagement() {
           ))}
         </div>
       )}
-    </div>
+    </PageLayout>
   );
 }

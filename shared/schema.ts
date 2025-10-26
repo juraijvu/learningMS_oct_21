@@ -33,6 +33,9 @@ export const users = pgTable("users", {
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
+  phoneNumber: varchar("phone_number", { length: 20 }),
+  education: jsonb("education"), // Array of education objects
+  workExperience: jsonb("work_experience"), // Array of work experience objects
   role: varchar("role", { enum: ['admin', 'sales_consultant', 'trainer', 'student'] }).notNull().default('student'),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -104,7 +107,7 @@ export const tasks = pgTable("tasks", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// Weekly schedules
+// Weekly schedules - backward compatible with existing schema
 export const schedules = pgTable("schedules", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   courseId: varchar("course_id").notNull().references(() => courses.id, { onDelete: 'cascade' }),
@@ -113,8 +116,10 @@ export const schedules = pgTable("schedules", {
   weekStart: timestamp("week_start").notNull(),
   dayOfWeek: integer("day_of_week").notNull(), // 0-6 (Sunday-Saturday)
   timeSlot: varchar("time_slot", { length: 50 }).notNull(),
+  status: varchar("status", { enum: ['active', 'paused', 'cancelled', 'completed'] }).notNull().default('active'),
   createdBy: varchar("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // Student queries on modules
@@ -206,6 +211,46 @@ export const attendance = pgTable("attendance", {
   index("idx_attendance_student").on(table.studentId),
   index("idx_attendance_schedule").on(table.scheduleId),
   index("idx_attendance_date").on(table.date),
+]);
+
+// Social media posts
+export const posts = pgTable("posts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  authorId: varchar("author_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  content: text("content"),
+  imageUrl: varchar("image_url", { length: 500 }),
+  imageExpiresAt: timestamp("image_expires_at"),
+  status: varchar("status", { enum: ['pending', 'approved', 'rejected'] }).notNull().default('pending'),
+  approvedBy: varchar("approved_by").references(() => users.id),
+  approvedAt: timestamp("approved_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_posts_author").on(table.authorId),
+  index("idx_posts_status").on(table.status),
+  index("idx_posts_created").on(table.createdAt),
+]);
+
+// Post comments
+export const postComments = pgTable("post_comments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  postId: varchar("post_id").notNull().references(() => posts.id, { onDelete: 'cascade' }),
+  authorId: varchar("author_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_comments_post").on(table.postId),
+  index("idx_comments_author").on(table.authorId),
+]);
+
+// Post likes
+export const postLikes = pgTable("post_likes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  postId: varchar("post_id").notNull().references(() => posts.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_likes_post").on(table.postId),
+  index("idx_likes_user").on(table.userId),
 ]);
 
 // Relations
@@ -353,6 +398,41 @@ export const attendanceRelations = relations(attendance, ({ one }) => ({
   }),
 }));
 
+export const postsRelations = relations(posts, ({ one, many }) => ({
+  author: one(users, {
+    fields: [posts.authorId],
+    references: [users.id],
+  }),
+  approver: one(users, {
+    fields: [posts.approvedBy],
+    references: [users.id],
+  }),
+  comments: many(postComments),
+  likes: many(postLikes),
+}));
+
+export const postCommentsRelations = relations(postComments, ({ one }) => ({
+  post: one(posts, {
+    fields: [postComments.postId],
+    references: [posts.id],
+  }),
+  author: one(users, {
+    fields: [postComments.authorId],
+    references: [users.id],
+  }),
+}));
+
+export const postLikesRelations = relations(postLikes, ({ one }) => ({
+  post: one(posts, {
+    fields: [postLikes.postId],
+    references: [posts.id],
+  }),
+  user: one(users, {
+    fields: [postLikes.userId],
+    references: [users.id],
+  }),
+}));
+
 // Type exports
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
@@ -399,6 +479,15 @@ export type Attendance = typeof attendance.$inferSelect;
 export type InsertEnrollmentRequest = typeof enrollmentRequests.$inferInsert;
 export type EnrollmentRequest = typeof enrollmentRequests.$inferSelect;
 
+export type InsertPost = typeof posts.$inferInsert;
+export type Post = typeof posts.$inferSelect;
+
+export type InsertPostComment = typeof postComments.$inferInsert;
+export type PostComment = typeof postComments.$inferSelect;
+
+export type InsertPostLike = typeof postLikes.$inferInsert;
+export type PostLike = typeof postLikes.$inferSelect;
+
 // Insert schemas for validation
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -441,8 +530,10 @@ export const insertTaskSchema = createInsertSchema(tasks).omit({
 export const insertScheduleSchema = createInsertSchema(schedules).omit({
   id: true,
   createdAt: true,
+  updatedAt: true,
 }).extend({
   weekStart: z.coerce.date(),
+  timeSlot: z.string().regex(/^\d{2}:\d{2}-\d{2}:\d{2}$/, "Time slot must be in format HH:MM-HH:MM"),
 });
 
 export const insertQuerySchema = createInsertSchema(queries).omit({
@@ -475,4 +566,20 @@ export const insertEnrollmentRequestSchema = createInsertSchema(enrollmentReques
   id: true,
   createdAt: true,
   reviewedAt: true,
+});
+
+export const insertPostSchema = createInsertSchema(posts).omit({
+  id: true,
+  createdAt: true,
+  approvedAt: true,
+});
+
+export const insertPostCommentSchema = createInsertSchema(postComments).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertPostLikeSchema = createInsertSchema(postLikes).omit({
+  id: true,
+  createdAt: true,
 });

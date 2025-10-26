@@ -224,4 +224,209 @@ export class ActivityLogger {
       details: { username, role },
     });
   }
+
+  // Schedule activities
+  static async logScheduleCreated(
+    createdBy: string,
+    scheduleId: string,
+    studentId: string,
+    courseTitle: string,
+    timeSlot: string,
+    req?: Request
+  ): Promise<void> {
+    await this.log(createdBy, 'schedule_created', {
+      req,
+      entityType: 'schedule',
+      entityId: scheduleId,
+      targetUserId: studentId,
+      details: { courseTitle, timeSlot },
+    });
+  }
+
+  static async logScheduleStatusChanged(
+    changedBy: string,
+    studentId: string,
+    courseTitle: string,
+    oldStatus: string,
+    newStatus: string,
+    scheduleCount: number,
+    req?: Request
+  ): Promise<void> {
+    await this.log(changedBy, 'schedule_status_changed', {
+      req,
+      entityType: 'schedule',
+      targetUserId: studentId,
+      details: { courseTitle, oldStatus, newStatus, scheduleCount },
+    });
+  }
+
+  // Post activities
+  static async logPostCreated(
+    authorId: string,
+    postId: string,
+    req?: Request
+  ): Promise<void> {
+    await this.log(authorId, 'post_created', {
+      req,
+      entityType: 'post',
+      entityId: postId,
+    });
+  }
+
+  static async logPostApproved(
+    approverId: string,
+    authorId: string,
+    postId: string,
+    req?: Request
+  ): Promise<void> {
+    await this.log(approverId, 'post_approved', {
+      req,
+      entityType: 'post',
+      entityId: postId,
+      targetUserId: authorId,
+    });
+  }
+
+  static async logPostRejected(
+    rejectedBy: string,
+    authorId: string,
+    postId: string,
+    req?: Request
+  ): Promise<void> {
+    await this.log(rejectedBy, 'post_rejected', {
+      req,
+      entityType: 'post',
+      entityId: postId,
+      targetUserId: authorId,
+    });
+  }
+
+  static async logCommentCreated(
+    authorId: string,
+    commentId: string,
+    postId: string,
+    req?: Request
+  ): Promise<void> {
+    await this.log(authorId, 'comment_created', {
+      req,
+      entityType: 'comment',
+      entityId: commentId,
+      details: { postId },
+    });
+  }
+
+  static async logPostLiked(
+    userId: string,
+    postId: string,
+    liked: boolean,
+    req?: Request
+  ): Promise<void> {
+    await this.log(userId, liked ? 'post_liked' : 'post_unliked', {
+      req,
+      entityType: 'post',
+      entityId: postId,
+    });
+  }
+
+  // Enrollment request activities
+  static async logEnrollmentRequestCreated(
+    studentId: string,
+    requestId: string,
+    courseTitle: string,
+    req?: Request
+  ): Promise<void> {
+    await this.log(studentId, 'enrollment_request_created', {
+      req,
+      entityType: 'enrollment_request',
+      entityId: requestId,
+      details: { courseTitle },
+    });
+  }
+
+  static async logEnrollmentRequestApproved(
+    reviewerId: string,
+    studentId: string,
+    requestId: string,
+    courseTitle: string,
+    req?: Request
+  ): Promise<void> {
+    await this.log(reviewerId, 'enrollment_request_approved', {
+      req,
+      entityType: 'enrollment_request',
+      entityId: requestId,
+      targetUserId: studentId,
+      details: { courseTitle },
+    });
+  }
+
+  static async logEnrollmentRequestRejected(
+    reviewerId: string,
+    studentId: string,
+    requestId: string,
+    courseTitle: string,
+    req?: Request
+  ): Promise<void> {
+    await this.log(reviewerId, 'enrollment_request_rejected', {
+      req,
+      entityType: 'enrollment_request',
+      entityId: requestId,
+      targetUserId: studentId,
+      details: { courseTitle },
+    });
+  }
+
+  // Attendance activities
+  static async logAttendanceMarked(
+    studentId: string,
+    attendanceId: string,
+    courseTitle: string,
+    status: string,
+    req?: Request
+  ): Promise<void> {
+    await this.log(studentId, 'attendance_marked', {
+      req,
+      entityType: 'attendance',
+      entityId: attendanceId,
+      details: { courseTitle, status },
+    });
+  }
+
+  static async logAttendanceVerified(
+    trainerId: string,
+    studentId: string,
+    attendanceId: string,
+    courseTitle: string,
+    req?: Request
+  ): Promise<void> {
+    await this.log(trainerId, 'attendance_verified', {
+      req,
+      entityType: 'attendance',
+      entityId: attendanceId,
+      targetUserId: studentId,
+      details: { courseTitle },
+    });
+  }
+
+  // Profile activities
+  static async logProfileUpdated(
+    userId: string,
+    req?: Request
+  ): Promise<void> {
+    await this.log(userId, 'profile_updated', {
+      req,
+      entityType: 'user',
+      entityId: userId,
+    });
+  }
+
+  static async logPasswordChanged(
+    userId: string,
+    req?: Request
+  ): Promise<void> {
+    await this.log(userId, 'password_changed', {
+      req,
+      entityType: 'user',
+      entityId: userId,
+    });
+  }
 }

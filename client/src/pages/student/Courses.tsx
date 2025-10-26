@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Badge } from "@/components/ui/badge";
+import { PageLayout } from "@/components/PageLayout";
 
 interface EnrolledCourse {
   id: string;
@@ -78,6 +79,8 @@ export default function StudentCourses() {
     },
   });
 
+
+
   if (isLoading) {
     return (
       <div className="p-6 space-y-6">
@@ -100,8 +103,10 @@ export default function StudentCourses() {
   }
 
   return (
-    <div className="p-6 space-y-8">
-      <h1 className="text-3xl font-semibold" data-testid="text-my-courses-title">My Courses</h1>
+    <PageLayout 
+      title="My Courses" 
+      subtitle="Access your enrolled courses and track progress"
+    >
 
       {courses && courses.length === 0 ? (
         <Card>
@@ -246,6 +251,6 @@ export default function StudentCourses() {
           </div>
         </div>
       )}
-    </div>
+    </PageLayout>
   );
 }

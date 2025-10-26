@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useState } from "react";
 import { UserPlus, BookOpen, Users, GraduationCap } from "lucide-react";
+import { PageLayout } from "@/components/PageLayout";
 
 type User = {
   id: string;
@@ -144,44 +145,39 @@ export default function ManageCourses() {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6" data-testid="page-manage-courses">
-      <div className="flex items-center gap-3">
-        <BookOpen className="h-8 w-8 text-primary" />
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100" data-testid="heading-manage-courses">
-            Manage Course Assignments
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Assign courses to trainers and enroll students
-          </p>
-        </div>
-      </div>
-
-      <div className="grid md:grid-cols-2 gap-6">
+    <PageLayout 
+      title="Manage Course Assignments" 
+      subtitle="Assign courses to trainers and enroll students in the system"
+    >
+      <div className="grid md:grid-cols-2 gap-8" data-testid="page-manage-courses">
         {/* Assign Course to Trainer */}
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-          <div className="p-6 space-y-6">
-            <div className="flex items-center gap-2">
-              <Users className="h-6 w-6 text-purple-600 dark:text-purple-400" />
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+        <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-xl rounded-2xl overflow-hidden">
+          <div className="bg-gradient-to-r from-purple-600 to-purple-700 text-white p-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                <Users className="h-6 w-6" />
+              </div>
+              <h2 className="text-xl font-bold">
                 Assign Course to Trainer
               </h2>
             </div>
+          </div>
+          <div className="p-6 space-y-6">
 
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="trainer-select" className="text-gray-900 dark:text-gray-100">
+            <div className="space-y-6">
+              <div className="space-y-3">
+                <Label htmlFor="trainer-select" className="text-blue-900 font-semibold">
                   Select Trainer
                 </Label>
                 <Select value={selectedTrainer} onValueChange={setSelectedTrainer}>
                   <SelectTrigger 
                     id="trainer-select"
                     data-testid="select-trainer"
-                    className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
+                    className="h-12 border-blue-200 focus:border-blue-500 rounded-xl"
                   >
                     <SelectValue placeholder="Choose a trainer" />
                   </SelectTrigger>
-                  <SelectContent className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600">
+                  <SelectContent>
                     {trainers?.map((trainer) => (
                       <SelectItem key={trainer.id} value={trainer.id}>
                         {getUserDisplay(trainer)} ({trainer.username})
@@ -191,8 +187,8 @@ export default function ManageCourses() {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="course-trainer-select" className="text-gray-900 dark:text-gray-100">
+              <div className="space-y-3">
+                <Label htmlFor="course-trainer-select" className="text-blue-900 font-semibold">
                   Select Course
                 </Label>
                 <Select
@@ -202,11 +198,11 @@ export default function ManageCourses() {
                   <SelectTrigger 
                     id="course-trainer-select"
                     data-testid="select-course-for-trainer"
-                    className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
+                    className="h-12 border-blue-200 focus:border-blue-500 rounded-xl"
                   >
                     <SelectValue placeholder="Choose a course" />
                   </SelectTrigger>
-                  <SelectContent className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600">
+                  <SelectContent>
                     {courses?.map((course) => (
                       <SelectItem key={course.id} value={course.id}>
                         {course.title}
@@ -219,17 +215,17 @@ export default function ManageCourses() {
               <Button
                 onClick={handleAssignTrainer}
                 disabled={assignTrainerMutation.isPending || !selectedTrainer || !selectedCourseForTrainer}
-                className="w-full bg-purple-600 hover:bg-purple-700 dark:bg-purple-500 dark:hover:bg-purple-600"
+                className="w-full h-12 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
                 data-testid="button-assign-trainer"
               >
                 {assignTrainerMutation.isPending ? (
                   <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
                     Assigning...
                   </>
                 ) : (
                   <>
-                    <UserPlus className="h-4 w-4 mr-2" />
+                    <UserPlus className="h-5 w-5 mr-2" />
                     Assign Trainer
                   </>
                 )}
@@ -239,29 +235,33 @@ export default function ManageCourses() {
         </Card>
 
         {/* Enroll Student in Course */}
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-          <div className="p-6 space-y-6">
-            <div className="flex items-center gap-2">
-              <GraduationCap className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+        <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-xl rounded-2xl overflow-hidden">
+          <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 text-white p-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                <GraduationCap className="h-6 w-6" />
+              </div>
+              <h2 className="text-xl font-bold">
                 Enroll Student in Course
               </h2>
             </div>
+          </div>
+          <div className="p-6 space-y-6">
 
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="student-select" className="text-gray-900 dark:text-gray-100">
+            <div className="space-y-6">
+              <div className="space-y-3">
+                <Label htmlFor="student-select" className="text-blue-900 font-semibold">
                   Select Student
                 </Label>
                 <Select value={selectedStudent} onValueChange={setSelectedStudent}>
                   <SelectTrigger 
                     id="student-select"
                     data-testid="select-student"
-                    className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
+                    className="h-12 border-blue-200 focus:border-blue-500 rounded-xl"
                   >
                     <SelectValue placeholder="Choose a student" />
                   </SelectTrigger>
-                  <SelectContent className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600">
+                  <SelectContent>
                     {students?.map((student) => (
                       <SelectItem key={student.id} value={student.id}>
                         {getUserDisplay(student)} ({student.username})
@@ -271,8 +271,8 @@ export default function ManageCourses() {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="course-student-select" className="text-gray-900 dark:text-gray-100">
+              <div className="space-y-3">
+                <Label htmlFor="course-student-select" className="text-blue-900 font-semibold">
                   Select Course
                 </Label>
                 <Select
@@ -282,11 +282,11 @@ export default function ManageCourses() {
                   <SelectTrigger 
                     id="course-student-select"
                     data-testid="select-course-for-student"
-                    className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
+                    className="h-12 border-blue-200 focus:border-blue-500 rounded-xl"
                   >
                     <SelectValue placeholder="Choose a course" />
                   </SelectTrigger>
-                  <SelectContent className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600">
+                  <SelectContent>
                     {courses?.map((course) => (
                       <SelectItem key={course.id} value={course.id}>
                         {course.title}
@@ -299,17 +299,17 @@ export default function ManageCourses() {
               <Button
                 onClick={handleEnrollStudent}
                 disabled={enrollStudentMutation.isPending || !selectedStudent || !selectedCourseForStudent}
-                className="w-full bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600"
+                className="w-full h-12 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
                 data-testid="button-enroll-student"
               >
                 {enrollStudentMutation.isPending ? (
                   <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
                     Enrolling...
                   </>
                 ) : (
                   <>
-                    <UserPlus className="h-4 w-4 mr-2" />
+                    <UserPlus className="h-5 w-5 mr-2" />
                     Enroll Student
                   </>
                 )}
@@ -318,6 +318,6 @@ export default function ManageCourses() {
           </div>
         </Card>
       </div>
-    </div>
+    </PageLayout>
   );
 }

@@ -67,13 +67,17 @@ export default function UsersManagement() {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-semibold">User Management</h1>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-100 p-6">
+      <div className="max-w-7xl mx-auto space-y-8">
+        <div className="flex items-center justify-between bg-white/70 backdrop-blur-sm rounded-2xl p-6 border border-blue-200/50 shadow-lg">
+          <div>
+            <h1 className="text-4xl font-bold text-blue-900">User Management</h1>
+            <p className="text-blue-700 font-medium mt-2">Manage all system users and their roles</p>
+          </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button data-testid="button-create-user">
-              <UserPlus className="mr-2 h-4 w-4" />
+            <Button className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold px-6 py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300" data-testid="button-create-user">
+              <UserPlus className="mr-2 h-5 w-5" />
               Create User
             </Button>
           </DialogTrigger>
@@ -157,64 +161,85 @@ export default function UsersManagement() {
             </div>
           </DialogContent>
         </Dialog>
-      </div>
+        </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>All Users</CardTitle>
-          <div className="relative mt-4">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search users..."
-              className="pl-10"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              data-testid="input-search-users"
-            />
-          </div>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>User</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Created</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredUsers.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground">
-                    No users found
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredUsers.map((user) => (
-                  <TableRow key={user.id} data-testid={`row-user-${user.id}`}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <UserAvatar user={user} className="h-8 w-8" />
-                        <span className="font-medium">
-                          {user.firstName} {user.lastName}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>{user.email}</TableCell>
-                    <TableCell>
-                      <RoleBadge role={user.role as any} />
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
-                    </TableCell>
+        <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-xl rounded-2xl overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-blue-700 to-blue-800 text-white p-6">
+            <CardTitle className="text-xl font-bold flex items-center gap-3">
+              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                <UserPlus className="h-5 w-5" />
+              </div>
+              All Users ({filteredUsers.length})
+            </CardTitle>
+            <div className="relative mt-4">
+              <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-blue-300" />
+              <Input
+                placeholder="Search users by name or email..."
+                className="pl-12 bg-white/10 border-white/20 text-white placeholder:text-blue-200 focus:bg-white/20 rounded-xl h-12"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                data-testid="input-search-users"
+              />
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-blue-50 border-b border-blue-100">
+                    <TableHead className="font-bold text-blue-900 py-4 px-6">User</TableHead>
+                    <TableHead className="font-bold text-blue-900 py-4 px-6">Email</TableHead>
+                    <TableHead className="font-bold text-blue-900 py-4 px-6">Role</TableHead>
+                    <TableHead className="font-bold text-blue-900 py-4 px-6">Created</TableHead>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                </TableHeader>
+                <TableBody>
+                  {filteredUsers.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center py-12">
+                        <div className="flex flex-col items-center gap-3">
+                          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
+                            <UserPlus className="h-8 w-8 text-blue-500" />
+                          </div>
+                          <p className="text-blue-600 font-semibold">No users found</p>
+                          <p className="text-blue-500 text-sm">Try adjusting your search criteria</p>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredUsers.map((user, index) => (
+                      <TableRow key={user.id} className={`hover:bg-blue-50 transition-colors border-b border-blue-50 ${index % 2 === 0 ? 'bg-white' : 'bg-blue-25'}`} data-testid={`row-user-${user.id}`}>
+                        <TableCell className="py-4 px-6">
+                          <div className="flex items-center gap-4">
+                            <UserAvatar user={user} className="h-12 w-12 border-2 border-blue-200" />
+                            <div>
+                              <p className="font-bold text-blue-900">
+                                {user.firstName} {user.lastName}
+                              </p>
+                              <p className="text-sm text-blue-600">@{user.username}</p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-4 px-6">
+                          <p className="font-medium text-blue-800">{user.email}</p>
+                        </TableCell>
+                        <TableCell className="py-4 px-6">
+                          <RoleBadge role={user.role as any} />
+                        </TableCell>
+                        <TableCell className="py-4 px-6">
+                          <p className="text-blue-600 font-medium">
+                            {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
+                          </p>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { BookOpen, Users, FileText, Upload, Video, FileIcon } from "lucide-react";
+import { PageLayout } from "@/components/PageLayout";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useState } from "react";
@@ -295,69 +296,69 @@ export default function TrainerCourses() {
 
   if (isLoading) {
     return (
-      <div className="p-6 space-y-6">
-        <Skeleton className="h-9 w-48" />
+      <PageLayout title="My Courses" subtitle="Manage your assigned courses and share materials">
         <div className="grid gap-6 md:grid-cols-2">
           {[...Array(4)].map((_, i) => (
-            <Card key={i}>
-              <CardHeader>
-                <Skeleton className="h-6 w-3/4" />
-                <Skeleton className="h-4 w-full mt-2" />
+            <Card key={i} className="bg-white/90 backdrop-blur-sm border-0 shadow-xl rounded-2xl overflow-hidden">
+              <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+                <Skeleton className="h-6 w-3/4 bg-white/20" />
+                <Skeleton className="h-4 w-full mt-2 bg-white/20" />
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-6">
                 <Skeleton className="h-20 w-full" />
               </CardContent>
             </Card>
           ))}
         </div>
-      </div>
+      </PageLayout>
     );
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <h1 className="text-3xl font-semibold" data-testid="text-my-courses-title">My Courses</h1>
-
+    <PageLayout 
+      title="My Courses" 
+      subtitle="Manage your assigned courses and share materials"
+    >
       {courses && courses.length === 0 ? (
-        <Card>
+        <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-xl rounded-2xl overflow-hidden">
           <CardContent className="flex flex-col items-center justify-center py-12">
-            <BookOpen className="h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-muted-foreground text-center">No courses assigned yet</p>
-            <p className="text-sm text-muted-foreground text-center mt-1">Contact admin for course assignments</p>
+            <BookOpen className="h-12 w-12 text-blue-400 mb-4" />
+            <p className="text-blue-600 text-center font-medium">No courses assigned yet</p>
+            <p className="text-sm text-blue-500 text-center mt-1">Contact admin for course assignments</p>
           </CardContent>
         </Card>
       ) : (
         <div className="grid gap-6 md:grid-cols-2">
           {courses?.map((course) => (
-            <Card key={course.id} className="hover-elevate" data-testid={`card-course-${course.id}`}>
-              <CardHeader>
+            <Card key={course.id} className="bg-white/90 backdrop-blur-sm border-0 shadow-xl rounded-2xl overflow-hidden hover:shadow-2xl transition-all duration-300" data-testid={`card-course-${course.id}`}>
+              <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
                 <div className="flex items-start gap-3">
-                  <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-gradient-to-br from-role-trainer to-chart-3">
+                  <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-white/20">
                     <BookOpen className="h-6 w-6 text-white" />
                   </div>
                   <div className="flex-1">
-                    <CardTitle className="text-lg">{course.title}</CardTitle>
-                    <CardDescription className="mt-2 line-clamp-2">
+                    <CardTitle className="text-lg text-white">{course.title}</CardTitle>
+                    <CardDescription className="mt-2 line-clamp-2 text-blue-100">
                       {course.description}
                     </CardDescription>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="p-6 space-y-4">
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="flex items-center gap-2 text-sm">
-                    <Users className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-muted-foreground">{course.studentCount} students</span>
+                  <div className="flex items-center gap-2 text-sm bg-blue-50 p-3 rounded-xl">
+                    <Users className="h-4 w-4 text-blue-600" />
+                    <span className="text-blue-700 font-medium">{course.studentCount} students</span>
                   </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <BookOpen className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-muted-foreground">{course.moduleCount} modules</span>
+                  <div className="flex items-center gap-2 text-sm bg-green-50 p-3 rounded-xl">
+                    <BookOpen className="h-4 w-4 text-green-600" />
+                    <span className="text-green-700 font-medium">{course.moduleCount} modules</span>
                   </div>
                 </div>
 
                 <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-sm font-medium">Shared Materials</p>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-sm font-bold text-blue-900">Shared Materials</p>
                     <UploadMaterialDialog courseId={course.id} />
                   </div>
                   <CourseMaterials courseId={course.id} />
@@ -365,14 +366,14 @@ export default function TrainerCourses() {
 
                 <div className="flex gap-2">
                   {course.pdfUrl && (
-                    <Button variant="outline" size="sm" asChild>
+                    <Button variant="outline" size="sm" asChild className="border-blue-300 text-blue-700 hover:bg-blue-50">
                       <a href={course.pdfUrl} target="_blank" rel="noopener noreferrer">
                         <FileText className="h-4 w-4 mr-1" />
                         PDF
                       </a>
                     </Button>
                   )}
-                  <Button size="sm" asChild className="flex-1">
+                  <Button size="sm" asChild className="flex-1 bg-blue-600 hover:bg-blue-700">
                     <a href={`/courses/${course.id}/students`} data-testid={`button-view-students-${course.id}`}>
                       View Students
                     </a>
@@ -383,6 +384,6 @@ export default function TrainerCourses() {
           ))}
         </div>
       )}
-    </div>
+    </PageLayout>
   );
 }
