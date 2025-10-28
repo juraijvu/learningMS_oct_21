@@ -112,7 +112,7 @@ export default function Landing() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-8">
-                {/* Demo Credentials */}
+                {/* Demo Credentials 
                 <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-200">
                   <p className="font-bold text-blue-900 mb-3 flex items-center gap-2">
                     <GraduationCap className="h-4 w-4" />
@@ -137,6 +137,7 @@ export default function Landing() {
                     </div>
                   </div>
                 </div>
+                */}
                 
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
                   <div className="space-y-2">
