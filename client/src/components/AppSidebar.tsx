@@ -26,6 +26,7 @@ import {
   SidebarMenuItem,
   SidebarHeader,
   SidebarFooter,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { useAuth } from "@/hooks/useAuth";
 import { UserAvatar } from "./UserAvatar";
@@ -113,10 +114,11 @@ const menuItems = {
   ],
 };
 
-export function AppSidebar() {
+export function AppSidebar({ className }: { className?: string }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
+  const { setOpenMobile, isMobile } = useSidebar();
   
   const logoutMutation = useMutation({
     mutationFn: async () => {
@@ -141,7 +143,7 @@ export function AppSidebar() {
 
   return (
     <Sidebar 
-      className="bg-gradient-to-b from-blue-900 via-blue-800 to-blue-900 border-r border-blue-700/50 custom-scrollbar"
+      className={`bg-gradient-to-b from-blue-900 via-blue-800 to-blue-900 border-r border-blue-700/50 custom-scrollbar ${className || ''}`}
       style={{ 
         background: 'linear-gradient(to bottom, #1e3a8a, #1e40af, #1e3a8a)', 
         backgroundColor: '#1e3a8a',
@@ -188,12 +190,17 @@ export function AppSidebar() {
                     <Link 
                       href={item.url} 
                       data-testid={item.testId}
-                      className="flex items-center gap-3 px-4 py-3 text-blue-100 hover:text-blue-200 hover:bg-blue-700/60 rounded-xl transition-all duration-300 group-hover:translate-x-2 group-hover:shadow-lg"
+                      className="flex items-center gap-3 px-4 py-6 text-blue-100 hover:text-blue-900 hover:bg-white/90 hover:mx-2 rounded-xl transition-all duration-300 group-hover:translate-x-2 group-hover:shadow-lg"
+                      onClick={() => {
+                        if (isMobile) {
+                          setOpenMobile(false);
+                        }
+                      }}
                     >
                       <div className="w-9 h-9 flex items-center justify-center bg-blue-700/60 rounded-xl group-hover:bg-blue-600 group-hover:scale-110 transition-all duration-300">
                         <item.icon className="h-5 w-5" />
                       </div>
-                      <span className="font-semibold group-hover:text-lg group-hover:text-blue-200 transition-all duration-300">{item.title}</span>
+                      <span className="font-semibold group-hover:text-lg group-hover:text-blue-900 transition-all duration-300">{item.title}</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

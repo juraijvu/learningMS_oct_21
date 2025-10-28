@@ -1,12 +1,21 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download, FileText, Video, Calendar, AlertCircle } from "lucide-react";
+import { Download, FileText, Video, Calendar, AlertCircle, Eye } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PageLayout } from "@/components/PageLayout";
+import { MediaViewer } from "@/components/MediaViewer";
 import type { ClassMaterial } from "@shared/schema";
 
 export default function StudentMaterials() {
+  const [viewerState, setViewerState] = useState<{
+    isOpen: boolean;
+    fileUrl: string;
+    fileName: string;
+    fileType: 'video' | 'pdf' | 'document';
+  }>({ isOpen: false, fileUrl: '', fileName: '', fileType: 'document' });
+
   // Fetch student's assigned materials
   const { data: materials, isLoading } = useQuery<ClassMaterial[]>({
     queryKey: ["/api/student/materials"],
@@ -28,6 +37,18 @@ export default function StudentMaterials() {
 
   const handleDownload = (material: ClassMaterial) => {
     window.open(`/api/class-materials/download/${material.id}`, '_blank');
+  };
+
+  const handleView = (material: ClassMaterial) => {
+    const fileType = material.type === 'video' ? 'video' : 
+                    material.fileName.toLowerCase().endsWith('.pdf') ? 'pdf' : 'document';
+    
+    setViewerState({
+      isOpen: true,
+      fileUrl: `/api/class-materials/view/${material.id}`,
+      fileName: material.fileName,
+      fileType
+    });
   };
 
   if (isLoading) {
@@ -109,14 +130,25 @@ export default function StudentMaterials() {
                           </div>
                         )}
 
-                        <Button
-                          onClick={() => handleDownload(material)}
-                          className="w-full"
-                          data-testid={`button-download-${material.id}`}
-                        >
-                          <Download className="h-4 w-4 mr-2" />
-                          Download
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={() => handleView(material)}
+                            variant="outline"
+                            className="flex-1"
+                            data-testid={`button-view-${material.id}`}
+                          >
+                            <Eye className="h-4 w-4 mr-2" />
+                            View
+                          </Button>
+                          <Button
+                            onClick={() => handleDownload(material)}
+                            className="flex-1"
+                            data-testid={`button-download-${material.id}`}
+                          >
+                            <Download className="h-4 w-4 mr-2" />
+                            Download
+                          </Button>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -166,6 +198,15 @@ export default function StudentMaterials() {
           </div>
         </div>
       )}
+      
+      <MediaViewer
+        isOpen={viewerState.isOpen}
+        onClose={() => setViewerState(prev => ({ ...prev, isOpen: false }))}
+        fileUrl={viewerState.fileUrl}
+        fileName={viewerState.fileName}
+        fileType={viewerState.fileType}
+        allowDownload={true}
+      />
     </PageLayout>
   );
 }

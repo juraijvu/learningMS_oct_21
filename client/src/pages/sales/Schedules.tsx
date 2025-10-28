@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { PageLayout } from "@/components/PageLayout";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { WeeklyCalendar } from "@/components/WeeklyCalendar";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useState } from "react";
 
@@ -251,6 +252,8 @@ export default function SalesSchedules() {
           )}
         </CardContent>
       </Card>
+      
+      {schedules && schedules.length > 0 && <WeeklyCalendar schedules={schedules} />}
       
       <ConfirmDialog
         open={confirmDialog.open}

@@ -8,6 +8,39 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AppSidebar } from "@/components/AppSidebar";
 import { useAuth } from "@/hooks/useAuth";
+import { Link } from "wouter";
+import { LayoutDashboard, Users, BookOpen, Calendar, User } from "lucide-react";
+
+const menuItems = {
+  admin: [
+    { title: "Dashboard", url: "/", icon: LayoutDashboard },
+    { title: "Users", url: "/users", icon: Users },
+    { title: "Courses", url: "/courses", icon: BookOpen },
+    { title: "Schedules", url: "/schedules", icon: Calendar },
+    { title: "Profile", url: "/profile", icon: User },
+  ],
+  sales_consultant: [
+    { title: "Dashboard", url: "/", icon: LayoutDashboard },
+    { title: "Students", url: "/students", icon: Users },
+    { title: "Courses", url: "/courses", icon: BookOpen },
+    { title: "Schedules", url: "/schedules", icon: Calendar },
+    { title: "Profile", url: "/profile", icon: User },
+  ],
+  trainer: [
+    { title: "Dashboard", url: "/", icon: LayoutDashboard },
+    { title: "Courses", url: "/courses", icon: BookOpen },
+    { title: "Students", url: "/students", icon: Users },
+    { title: "Schedule", url: "/schedule", icon: Calendar },
+    { title: "Profile", url: "/profile", icon: User },
+  ],
+  student: [
+    { title: "Dashboard", url: "/", icon: LayoutDashboard },
+    { title: "Courses", url: "/courses", icon: BookOpen },
+    { title: "Progress", url: "/progress", icon: Users },
+    { title: "Schedule", url: "/schedule", icon: Calendar },
+    { title: "Profile", url: "/profile", icon: User },
+  ],
+};
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/Landing";
 
@@ -163,15 +196,26 @@ function Router() {
   return (
     <SidebarProvider style={style as React.CSSProperties}>
       <div className="flex h-screen w-full">
-        <AppSidebar />
+        <AppSidebar className="hidden md:flex" />
         <div className="flex flex-col flex-1 overflow-hidden">
-          <header className="flex items-center justify-between p-4 border-b bg-background sticky top-0 z-10">
-            <SidebarTrigger data-testid="button-sidebar-toggle" />
+          <header className="flex items-center justify-between p-2 md:p-4 border-b bg-background sticky top-0 z-10">
+            <SidebarTrigger data-testid="button-sidebar-toggle" className="md:hidden" />
+            <h1 className="text-lg md:text-xl font-semibold truncate">{user?.role?.replace('_', ' ').toUpperCase()}</h1>
             <ThemeToggle />
           </header>
-          <main className="flex-1 overflow-auto">
+          <main className="flex-1 overflow-auto pb-16 md:pb-0">
             <RoleBasedRoutes />
           </main>
+          <div className="md:hidden fixed bottom-0 left-0 right-0 bg-blue-900 border-t border-blue-700">
+            <div className="flex justify-around py-2">
+              {(menuItems[user?.role as keyof typeof menuItems] || []).slice(0, 5).map((item) => (
+                <Link key={item.title} href={item.url} className="flex flex-col items-center p-2 text-blue-100 hover:text-white">
+                  <item.icon className="h-5 w-5" />
+                  <span className="text-xs mt-1 truncate">{item.title}</span>
+                </Link>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </SidebarProvider>

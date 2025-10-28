@@ -9,6 +9,7 @@ import { PageLayout } from "@/components/PageLayout";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { WeeklyCalendar } from "@/components/WeeklyCalendar";
 import { useState } from "react";
 
 interface ScheduleItem {
@@ -247,6 +248,8 @@ export default function AdminSchedules() {
           )}
         </CardContent>
       </Card>
+      
+      {schedules && schedules.length > 0 && <WeeklyCalendar schedules={schedules} />}
       
       <ConfirmDialog
         open={confirmDialog.open}

@@ -11,6 +11,7 @@ import { z } from "zod";
 import multer from "multer";
 import path from "path";
 import fs from "fs/promises";
+import fsSync from "fs";
 import { ActivityLogger } from "./activityLogger";
 import * as cheerio from "cheerio";
 import fetch from "node-fetch";
@@ -1743,6 +1744,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error downloading class material:", error);
       res.status(500).json({ message: "Failed to download material" });
+    }
+  });
+
+  // View class material (for inline viewing)
+  app.get("/api/class-materials/view/:id", isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const material = await storage.getClassMaterialById(id);
+      
+      if (!material) {
+        return res.status(404).json({ message: "Material not found" });
+      }
+
+      const filePath = path.join(process.cwd(), material.fileUrl);
+      
+      // Check if file exists
+      try {
+        await fs.access(filePath);
+      } catch {
+        return res.status(404).json({ message: "File not found on server" });
+      }
+
+      // Set appropriate content type for inline viewing
+      const ext = path.extname(material.fileName).toLowerCase();
+      const contentTypes: Record<string, string> = {
+        '.pdf': 'application/pdf',
+        '.mp4': 'video/mp4',
+        '.webm': 'video/webm',
+        '.ogg': 'video/ogg',
+        '.avi': 'video/x-msvideo',
+        '.mov': 'video/quicktime'
+      };
+      
+      const contentType = contentTypes[ext] || 'application/octet-stream';
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Disposition', 'inline');
+      
+      const fileStream = fsSync.createReadStream(filePath);
+      fileStream.pipe(res);
+    } catch (error) {
+      console.error("Error viewing class material:", error);
+      res.status(500).json({ message: "Failed to view material" });
     }
   });
 

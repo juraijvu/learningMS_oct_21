@@ -2,6 +2,55 @@
 @tailwind components;
 @tailwind utilities;
 
+/* React PDF styles */
+.react-pdf__Page {
+  margin: 0 auto;
+  max-width: 100%;
+}
+
+.react-pdf__Page__canvas {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+  max-width: 100%;
+  height: auto !important;
+}
+
+.react-pdf__Page__textContent {
+  border: 1px solid transparent;
+}
+
+.react-pdf__Page__annotations {
+  border: 1px solid transparent;
+}
+
+/* Mobile optimizations for media viewing */
+@media (max-width: 768px) {
+  /* Video player mobile optimizations */
+  video {
+    max-width: 100% !important;
+    height: auto !important;
+    object-fit: contain;
+  }
+  
+  /* PDF viewer mobile optimizations */
+  iframe {
+    max-width: 100% !important;
+    min-height: 300px !important;
+  }
+  
+  /* Dialog content mobile adjustments */
+  [data-radix-dialog-content] {
+    max-width: 95vw !important;
+    max-height: 90vh !important;
+    margin: 8px !important;
+  }
+  
+  /* Prevent horizontal overflow */
+  .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
 /* LIGHT MODE */
 :root {
   --button-outline: rgba(0,0,0, .10);
@@ -347,5 +396,24 @@
   .border.active-elevate-2:not(.no-active-interaction-elevate)::after,
   .border.hover-elevate:not(.no-hover-interaction-elevate)::after {
     inset: -1px;
+  }
+  
+  /* Mobile touch improvements */
+  @media (max-width: 768px) {
+    /* Improve touch targets */
+    button, [role="button"], a {
+      min-height: 44px;
+      min-width: 44px;
+    }
+    
+    /* Prevent zoom on input focus */
+    input, select, textarea {
+      font-size: 16px;
+    }
+    
+    /* Smooth scrolling for mobile */
+    * {
+      -webkit-overflow-scrolling: touch;
+    }
   }
 }
