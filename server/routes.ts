@@ -127,6 +127,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
   setupAuth(app);
   
+  // Media headers middleware for proper MIME types and CORS
+  app.use('/uploads', (req, res, next) => {
+    const ext = path.extname(req.path).toLowerCase();
+    
+    // Set proper MIME types
+    switch (ext) {
+      case '.mp4':
+        res.setHeader('Content-Type', 'video/mp4');
+        break;
+      case '.webm':
+        res.setHeader('Content-Type', 'video/webm');
+        break;
+      case '.ogg':
+        res.setHeader('Content-Type', 'video/ogg');
+        break;
+      case '.pdf':
+        res.setHeader('Content-Type', 'application/pdf');
+        break;
+    }
+    
+    // Enable CORS for media files
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Range, Content-Range, Content-Length');
+    
+    // Enable range requests for video
+    if (ext === '.mp4' || ext === '.webm' || ext === '.ogg') {
+      res.setHeader('Accept-Ranges', 'bytes');
+    }
+    
+    // Cache control
+    res.setHeader('Cache-Control', 'public, max-age=31536000');
+    
+    next();
+  });
+  
   // Serve static files from uploads directory
   app.use('/uploads', express.static('uploads'));
 
