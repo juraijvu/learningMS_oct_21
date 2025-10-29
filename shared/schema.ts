@@ -37,6 +37,8 @@ export const users = pgTable("users", {
   education: jsonb("education"), // Array of education objects
   workExperience: jsonb("work_experience"), // Array of work experience objects
   role: varchar("role", { enum: ['admin', 'sales_consultant', 'trainer', 'student'] }).notNull().default('student'),
+  mustChangePassword: boolean("must_change_password").notNull().default(false),
+  lastPasswordChange: timestamp("last_password_change"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

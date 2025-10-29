@@ -13,8 +13,10 @@ import path from "path";
 import fs from "fs/promises";
 import fsSync from "fs";
 import { ActivityLogger } from "./activityLogger";
+import { emailService } from "./emailService";
 import * as cheerio from "cheerio";
 import fetch from "node-fetch";
+import crypto from "crypto";
 
 // Time slot utility functions
 function parseTimeSlot(timeSlot: string): { startTime: string; endTime: string } | null {
@@ -198,7 +200,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await ActivityLogger.logLogin(user.id, req);
       
       const { passwordHash, ...userWithoutPassword } = user;
-      res.json(userWithoutPassword);
+      res.json({
+        ...userWithoutPassword,
+        mustChangePassword: user.mustChangePassword || false
+      });
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Invalid input", errors: error.errors });
@@ -245,10 +250,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const changePasswordSchema = z.object({
         currentPassword: z.string().min(1),
         newPassword: z.string().min(6),
+        confirmPassword: z.string().min(6),
       });
       
-      const { currentPassword, newPassword } = changePasswordSchema.parse(req.body);
+      const { currentPassword, newPassword, confirmPassword } = changePasswordSchema.parse(req.body);
       const userId = req.session.userId;
+      
+      if (newPassword !== confirmPassword) {
+        return res.status(400).json({ message: "New password and confirm password do not match" });
+      }
       
       const user = await storage.getUser(userId);
       if (!user) {
@@ -262,7 +272,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const newPasswordHash = await hashPassword(newPassword);
       await db.update(users)
-        .set({ passwordHash: newPasswordHash, updatedAt: new Date() })
+        .set({ 
+          passwordHash: newPasswordHash, 
+          mustChangePassword: false,
+          lastPasswordChange: new Date(),
+          updatedAt: new Date() 
+        })
         .where(eq(users.id, userId));
       
       // Log activity
@@ -288,11 +303,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Username already exists" });
       }
 
-      const passwordHash = await hashPassword(password);
+      // Generate temporary password if not provided
+      const temporaryPassword = password || crypto.randomBytes(8).toString('hex');
+      const passwordHash = await hashPassword(temporaryPassword);
+      
       const user = await storage.createUser({
         ...userData,
         passwordHash,
+        mustChangePassword: true,
       });
+      
+      // Send welcome email with credentials
+      if (userData.email) {
+        try {
+          await emailService.sendWelcomeEmail(
+            userData.email,
+            userData.firstName || '',
+            userData.lastName || '',
+            userData.username,
+            temporaryPassword,
+            userData.role
+          );
+        } catch (emailError) {
+          console.error('Failed to send welcome email:', emailError);
+          // Don't fail user creation if email fails
+        }
+      }
       
       // Log activity
       const adminId = req.currentUser?.id || req.session?.userId;
@@ -301,7 +337,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { passwordHash: _, ...userWithoutPassword } = user;
-      res.json(userWithoutPassword);
+      res.json({ 
+        ...userWithoutPassword,
+        temporaryPassword: temporaryPassword // Return for admin reference
+      });
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Invalid input", errors: error.errors });
@@ -355,11 +394,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Username already exists" });
       }
 
-      const passwordHash = await hashPassword(password);
+      // Generate temporary password if not provided
+      const temporaryPassword = password || crypto.randomBytes(8).toString('hex');
+      const passwordHash = await hashPassword(temporaryPassword);
+      
       const user = await storage.createUser({
         ...userData,
         passwordHash,
+        mustChangePassword: true,
       });
+      
+      // Send welcome email with credentials
+      if (userData.email) {
+        try {
+          await emailService.sendWelcomeEmail(
+            userData.email,
+            userData.firstName || '',
+            userData.lastName || '',
+            userData.username,
+            temporaryPassword,
+            userData.role
+          );
+        } catch (emailError) {
+          console.error('Failed to send welcome email:', emailError);
+          // Don't fail user creation if email fails
+        }
+      }
       
       // Log activity
       const adminId = req.currentUser?.id || req.session?.userId;
@@ -368,7 +428,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { passwordHash: _, ...userWithoutPassword } = user;
-      res.json(userWithoutPassword);
+      res.json({ 
+        ...userWithoutPassword,
+        temporaryPassword: temporaryPassword // Return for admin reference
+      });
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Invalid input", errors: error.errors });
@@ -2643,6 +2706,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ============ EMAIL TEST ROUTE ============
+  
+  // Test email configuration (admin only)
+  app.post("/api/admin/test-email", isAuthenticated, requireRole(['admin']), async (req: any, res) => {
+    try {
+      const { testEmail } = req.body;
+      
+      if (!testEmail) {
+        return res.status(400).json({ message: "Test email address is required" });
+      }
+      
+      // Test connection first
+      const connectionTest = await emailService.testConnection();
+      if (!connectionTest) {
+        return res.status(500).json({ message: "SMTP connection failed" });
+      }
+      
+      // Send test email
+      await emailService.sendWelcomeEmail(
+        testEmail,
+        'Test',
+        'User',
+        'testuser',
+        'temp123',
+        'student'
+      );
+      
+      res.json({ message: "Test email sent successfully" });
+    } catch (error) {
+      console.error("Error sending test email:", error);
+      res.status(500).json({ message: "Failed to send test email", error: error.message });
+    }
+  });
+  
   // ============ PROFILE ROUTES ============
   
   // Upload profile image

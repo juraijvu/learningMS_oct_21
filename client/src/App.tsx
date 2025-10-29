@@ -7,7 +7,9 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AppSidebar } from "@/components/AppSidebar";
+import { PasswordChangeDialog } from "@/components/PasswordChangeDialog";
 import { useAuth } from "@/hooks/useAuth";
+import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { LayoutDashboard, Users, BookOpen, Calendar, User } from "lucide-react";
 
@@ -170,6 +172,13 @@ function StudentRoutes() {
 
 function Router() {
   const { isAuthenticated, isLoading, user } = useAuth();
+  const [showPasswordChange, setShowPasswordChange] = useState(false);
+  
+  useEffect(() => {
+    if (user && user.mustChangePassword) {
+      setShowPasswordChange(true);
+    }
+  }, [user]);
 
   // Only show landing if we're loading AND don't have user data yet
   // This prevents flashing landing page when refetching user data
@@ -218,6 +227,12 @@ function Router() {
           </div>
         </div>
       </div>
+      
+      <PasswordChangeDialog 
+        isOpen={showPasswordChange}
+        onClose={() => setShowPasswordChange(false)}
+        isRequired={user?.mustChangePassword || false}
+      />
     </SidebarProvider>
   );
 }
