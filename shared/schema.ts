@@ -154,6 +154,7 @@ export const classMaterials = pgTable("class_materials", {
   fileUrl: varchar("file_url", { length: 500 }).notNull(),
   fileName: varchar("file_name", { length: 255 }).notNull(),
   fileSize: integer("file_size").notNull(),
+  allowDownload: boolean("allow_download").notNull().default(true),
   uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
   expiresAt: timestamp("expires_at").notNull(),
 });

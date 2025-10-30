@@ -1768,6 +1768,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         type: z.enum(['video', 'note']),
         title: z.string().min(1),
         description: z.string().optional(),
+        allowDownload: z.string().transform(val => val === 'true').optional().default(true),
       });
 
       const data = uploadSchema.parse(req.body);
@@ -1787,6 +1788,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fileUrl: `/uploads/${req.file.filename}`,
         fileName: req.file.originalname,
         fileSize: req.file.size,
+        allowDownload: data.allowDownload,
         expiresAt,
       });
       
@@ -1828,6 +1830,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (!material) {
         return res.status(404).json({ message: "Material not found" });
+      }
+      
+      // Check if download is allowed
+      if (!material.allowDownload) {
+        return res.status(403).json({ message: "Download is not allowed for this material" });
       }
 
       const filePath = path.join(process.cwd(), material.fileUrl);

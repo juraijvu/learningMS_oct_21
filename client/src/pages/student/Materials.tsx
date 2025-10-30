@@ -140,14 +140,27 @@ export default function StudentMaterials() {
                             <Eye className="h-4 w-4 mr-2" />
                             View
                           </Button>
-                          <Button
-                            onClick={() => handleDownload(material)}
-                            className="flex-1"
-                            data-testid={`button-download-${material.id}`}
-                          >
-                            <Download className="h-4 w-4 mr-2" />
-                            Download
-                          </Button>
+                          {material.allowDownload ? (
+                            <Button
+                              onClick={() => handleDownload(material)}
+                              className="flex-1"
+                              data-testid={`button-download-${material.id}`}
+                            >
+                              <Download className="h-4 w-4 mr-2" />
+                              Download
+                            </Button>
+                          ) : (
+                            <Button
+                              disabled
+                              variant="outline"
+                              className="flex-1 opacity-50"
+                              title="Download disabled by trainer"
+                              data-testid={`button-download-disabled-${material.id}`}
+                            >
+                              <Download className="h-4 w-4 mr-2" />
+                              View Only
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </CardContent>
@@ -205,7 +218,7 @@ export default function StudentMaterials() {
         fileUrl={viewerState.fileUrl}
         fileName={viewerState.fileName}
         fileType={viewerState.fileType}
-        allowDownload={true}
+        allowDownload={materials?.find(m => `/api/class-materials/view/${m.id}` === viewerState.fileUrl)?.allowDownload ?? true}
       />
     </PageLayout>
   );

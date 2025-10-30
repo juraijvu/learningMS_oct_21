@@ -29,6 +29,7 @@ export default function ClassMaterials() {
     title: "",
     description: "",
     file: null as File | null,
+    allowDownload: true,
   });
 
   // Fetch trainer's materials
@@ -75,6 +76,7 @@ export default function ClassMaterials() {
         title: "",
         description: "",
         file: null,
+        allowDownload: true,
       });
     },
     onError: (error: Error) => {
@@ -145,6 +147,7 @@ export default function ClassMaterials() {
     formData.append('courseId', uploadForm.courseId);
     formData.append('type', uploadForm.type);
     formData.append('title', uploadForm.title);
+    formData.append('allowDownload', uploadForm.allowDownload.toString());
     if (uploadForm.description) {
       formData.append('description', uploadForm.description);
     }
@@ -290,6 +293,21 @@ export default function ClassMaterials() {
                   Max 100MB. Supported: Videos, PDFs, Word, PowerPoint, Text files
                 </p>
               </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="allowDownload"
+                  checked={uploadForm.allowDownload}
+                  onCheckedChange={(checked) => setUploadForm({ ...uploadForm, allowDownload: !!checked })}
+                  data-testid="checkbox-allow-download"
+                />
+                <Label htmlFor="allowDownload" className="text-sm font-medium">
+                  Allow students to download this file
+                </Label>
+              </div>
+              <p className="text-xs text-muted-foreground ml-6">
+                If unchecked, students can only view/play the file but cannot download it
+              </p>
 
               <Button
                 onClick={handleUpload}
