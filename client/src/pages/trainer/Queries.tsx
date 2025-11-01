@@ -33,10 +33,14 @@ export default function TrainerQueries() {
 
   const respondMutation = useMutation({
     mutationFn: async ({ queryId, response }: { queryId: string; response: string }) => {
-      return await apiRequest("PATCH", `/api/trainer/queries/${queryId}/respond`, { response });
+      return await apiRequest(`/api/trainer/queries/${queryId}/respond`, {
+        method: "PATCH",
+        body: { response },
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/trainer/queries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/student/queries"] });
       toast({ title: "Success", description: "Response sent successfully" });
       setResponses({});
     },

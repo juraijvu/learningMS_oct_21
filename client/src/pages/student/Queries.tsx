@@ -40,7 +40,10 @@ export default function StudentQueries() {
 
   const createQueryMutation = useMutation({
     mutationFn: async (queryData: typeof newQuery) => {
-      return await apiRequest("POST", "/api/student/queries", queryData);
+      return await apiRequest("/api/student/queries", {
+        method: "POST",
+        body: queryData,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/student/queries"] });
