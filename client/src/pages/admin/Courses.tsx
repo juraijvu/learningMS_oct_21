@@ -41,7 +41,7 @@ export default function CoursesManagement() {
 
   const createCourseMutation = useMutation({
     mutationFn: async (courseData: typeof newCourse) => {
-      return await apiRequest("POST", "/api/admin/courses", courseData);
+      return await apiRequest("/api/admin/courses", { method: "POST", body: courseData });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/courses"] });
@@ -64,7 +64,7 @@ export default function CoursesManagement() {
 
     setIsFetchingMetadata(true);
     try {
-      const response = await apiRequest("POST", "/api/admin/courses/fetch-metadata", { url: coursePageUrl }) as any;
+      const response = await apiRequest("/api/admin/courses/fetch-metadata", { method: "POST", body: { url: coursePageUrl } }) as any;
       
       setNewCourse({
         ...newCourse,

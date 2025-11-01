@@ -213,7 +213,7 @@ function CourseMaterials({ courseId }: { courseId: string }) {
 
   const deleteMutation = useMutation({
     mutationFn: (materialId: string) => 
-      apiRequest('DELETE', `/api/class-materials/${materialId}`),
+      apiRequest(`/api/class-materials/${materialId}`, { method: 'DELETE' }),
     onSuccess: () => {
       toast({
         title: "Success",

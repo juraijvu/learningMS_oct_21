@@ -52,16 +52,7 @@ export default function StudentCourses() {
 
   const enrollMutation = useMutation({
     mutationFn: async (courseId: string) => {
-      const res = await fetch("/api/enrollment-requests", {
-        method: "POST",
-        body: JSON.stringify({ courseId }),
-        headers: { "Content-Type": "application/json" },
-      });
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.message || "Failed to send enrollment request");
-      }
-      return await res.json();
+      return await apiRequest("/api/enrollment-requests", { method: "POST", body: { courseId } });
     },
     onSuccess: (data: any) => {
       toast({

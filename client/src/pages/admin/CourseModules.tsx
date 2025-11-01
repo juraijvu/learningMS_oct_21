@@ -31,7 +31,7 @@ export default function CourseModules() {
 
   const createModuleMutation = useMutation({
     mutationFn: async (moduleData: { title: string; subPoints: string[] }) => {
-      return await apiRequest("POST", `/api/admin/courses/${courseId}/modules`, moduleData);
+      return await apiRequest(`/api/admin/courses/${courseId}/modules`, { method: "POST", body: moduleData });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/admin/courses/${courseId}/modules`] });
