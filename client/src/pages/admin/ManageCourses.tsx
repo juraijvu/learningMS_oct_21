@@ -51,12 +51,10 @@ export default function ManageCourses() {
 
   const assignTrainerMutation = useMutation({
     mutationFn: async (data: { trainerId: string; courseId: string }) => {
-      const res = await apiRequest("POST", "/api/admin/assign-course-to-trainer", data);
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.message || "Failed to assign course to trainer");
-      }
-      return await res.json();
+      return await apiRequest("/api/admin/assign-course-to-trainer", {
+        method: "POST",
+        body: data,
+      });
     },
     onSuccess: (data) => {
       toast({
@@ -81,12 +79,10 @@ export default function ManageCourses() {
 
   const enrollStudentMutation = useMutation({
     mutationFn: async (data: { studentId: string; courseId: string }) => {
-      const res = await apiRequest("POST", "/api/admin/enroll-student", data);
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.message || "Failed to enroll student");
-      }
-      return await res.json();
+      return await apiRequest("/api/admin/enroll-student", {
+        method: "POST",
+        body: data,
+      });
     },
     onSuccess: (data) => {
       toast({
