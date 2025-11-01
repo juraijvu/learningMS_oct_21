@@ -41,6 +41,7 @@ interface ClassMaterial {
   fileSize: number;
   uploadedAt: string;
   expiresAt: string;
+  allowDownload: boolean;
 }
 
 export default function StudentCourseDetail() {
@@ -207,12 +208,26 @@ export default function StudentCourseDetail() {
                           </span>
                         </p>
                       </div>
-                      <Button size="sm" variant="outline" asChild data-testid={`button-download-${material.id}`}>
-                        <a href={`/api/class-materials/download/${material.id}`} download>
+                      {material.allowDownload ? (
+                        <Button size="sm" variant="outline" asChild data-testid={`button-download-${material.id}`}>
+                          <a href={`/api/class-materials/download/${material.id}`} download>
+                            <Download className="h-4 w-4 mr-1" />
+                            Download
+                          </a>
+                        </Button>
+                      ) : (
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          disabled 
+                          className="opacity-50"
+                          title="Download disabled by trainer"
+                          data-testid={`button-download-disabled-${material.id}`}
+                        >
                           <Download className="h-4 w-4 mr-1" />
-                          Download
-                        </a>
-                      </Button>
+                          View Only
+                        </Button>
+                      )}
                     </div>
                   );
                 })}

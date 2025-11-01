@@ -69,16 +69,20 @@ export function MediaViewer({
             <AlertCircle className="h-12 w-12 mb-4 text-red-500" />
             <p>Video cannot be played</p>
             <p className="text-sm mt-2">Try downloading the file to view it</p>
-            <Button onClick={handleDownload} className="mt-4">
-              <Download className="h-4 w-4 mr-2" />
-              Download Video
-            </Button>
+            {allowDownload && (
+              <Button onClick={handleDownload} className="mt-4">
+                <Download className="h-4 w-4 mr-2" />
+                Download Video
+              </Button>
+            )}
           </div>
         );
       }
       
       return (
-        <div className="w-full">
+        <div className="w-full" style={{
+          position: 'relative'
+        }}>
           <video
             ref={videoRef}
             controls
@@ -87,12 +91,30 @@ export function MediaViewer({
             style={{ maxWidth: '100%' }}
             onError={() => setVideoError(true)}
             onLoadStart={() => setVideoError(false)}
+            controlsList="nodownload noremoteplayback"
+            disablePictureInPicture={true}
+            onContextMenu={(e) => e.preventDefault()}
           >
             <source src={fileUrl} type="video/mp4" />
             <source src={fileUrl} type="video/webm" />
             <source src={fileUrl} type="video/ogg" />
             Your browser does not support the video tag.
           </video>
+          <style>{`
+            video::-webkit-media-controls-download-button {
+              display: none !important;
+            }
+            video::-webkit-media-controls-enclosure {
+              overflow: hidden;
+            }
+            video::-internal-media-controls-download-button {
+              display: none !important;
+            }
+            video::-webkit-media-controls-panel {
+              -webkit-user-select: none;
+              user-select: none;
+            }
+          `}</style>
         </div>
       );
     }
@@ -104,24 +126,42 @@ export function MediaViewer({
             <AlertCircle className="h-12 w-12 mb-4 text-red-500" />
             <p>PDF cannot be displayed</p>
             <p className="text-sm mt-2">Try downloading the file to view it</p>
-            <Button onClick={handleDownload} className="mt-4">
-              <Download className="h-4 w-4 mr-2" />
-              Download PDF
-            </Button>
+            {allowDownload && (
+              <Button onClick={handleDownload} className="mt-4">
+                <Download className="h-4 w-4 mr-2" />
+                Download PDF
+              </Button>
+            )}
           </div>
         );
       }
       
+      const pdfUrl = `${fileUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH&disableprint=1`;
+      
       return (
-        <div className="w-full h-[60vh] md:h-[70vh]">
+        <div className="w-full h-[60vh] md:h-[70vh]" style={{
+          position: 'relative'
+        }}>
           <iframe
             ref={iframeRef}
-            src={`${fileUrl}#toolbar=1&navpanes=1&scrollbar=1`}
+            src={pdfUrl}
             className="w-full h-full border-0 rounded"
             title={fileName}
             style={{ minHeight: '300px' }}
             onError={() => setPdfError(true)}
+            onContextMenu={(e) => e.preventDefault()}
           />
+          <style>{`
+            iframe {
+              -webkit-user-select: none;
+              -moz-user-select: none;
+              -ms-user-select: none;
+              user-select: none;
+            }
+            iframe::selection {
+              background: transparent;
+            }
+          `}</style>
         </div>
       );
     }

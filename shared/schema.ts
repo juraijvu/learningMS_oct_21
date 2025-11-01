@@ -169,7 +169,9 @@ export const materialAssignments = pgTable("material_assignments", {
   materialId: varchar("material_id").notNull().references(() => classMaterials.id, { onDelete: 'cascade' }),
   studentId: varchar("student_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   assignedAt: timestamp("assigned_at").defaultNow().notNull(),
-});
+}, (table) => [
+  index("idx_material_assignment_unique").on(table.materialId, table.studentId),
+]);
 
 // Enrollment requests from students
 export const enrollmentRequests = pgTable("enrollment_requests", {

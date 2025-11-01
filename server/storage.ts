@@ -488,6 +488,19 @@ export class DatabaseStorage implements IStorage {
 
   // Material assignment operations
   async assignMaterialToStudent(materialId: string, studentId: string): Promise<MaterialAssignment> {
+    // Check if assignment already exists
+    const existing = await db
+      .select()
+      .from(materialAssignments)
+      .where(and(
+        eq(materialAssignments.materialId, materialId),
+        eq(materialAssignments.studentId, studentId)
+      ));
+    
+    if (existing.length > 0) {
+      return existing[0];
+    }
+    
     const [assignment] = await db
       .insert(materialAssignments)
       .values({ materialId, studentId })

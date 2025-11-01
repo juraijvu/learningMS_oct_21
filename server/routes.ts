@@ -1886,12 +1886,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get class materials for a course
-  app.get("/api/class-materials/:courseId", isAuthenticated, async (req, res) => {
+  // Get class materials for a course (students get only assigned materials)
+  app.get("/api/class-materials/:courseId", isAuthenticated, async (req: any, res) => {
     try {
       const { courseId } = req.params;
-      const materials = await storage.getClassMaterialsByCourse(courseId);
-      res.json(materials);
+      const userId = req.session?.userId;
+      const user = await storage.getUser(userId);
+      
+      let materials;
+      
+      if (user?.role === 'student') {
+        // For students, get only assigned materials for this course
+        const allAssignedMaterials = await storage.getStudentMaterials(userId);
+        materials = allAssignedMaterials.filter(material => material.courseId === courseId);
+      } else {
+        // For trainers/admins, get all materials for the course
+        materials = await storage.getClassMaterialsByCourse(courseId);
+      }
+      
+      // Ensure allowDownload property is included in response
+      const materialsWithDownloadFlag = materials.map(material => ({
+        ...material,
+        allowDownload: material.allowDownload ?? true
+      }));
+      res.json(materialsWithDownloadFlag);
     } catch (error) {
       console.error("Error fetching class materials:", error);
       res.status(500).json({ message: "Failed to fetch class materials" });
@@ -1961,7 +1979,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const contentType = contentTypes[ext] || 'application/octet-stream';
       res.setHeader('Content-Type', contentType);
-      res.setHeader('Content-Disposition', 'inline');
+      
+      // Control download behavior based on allowDownload setting
+      if (!material.allowDownload) {
+        res.setHeader('Content-Disposition', 'inline');
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+      } else {
+        res.setHeader('Content-Disposition', 'inline');
+      }
       
       const fileStream = fsSync.createReadStream(filePath);
       fileStream.pipe(res);
@@ -2034,7 +2063,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ 
         message: `Material assigned to ${studentIds.length} student(s)`,
-        assignments 
+        assignments,
+        courseId: material.courseId
       });
     } catch (error) {
       if (error instanceof z.ZodError) {

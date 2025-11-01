@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download, FileText, Video, Calendar, AlertCircle, Eye } from "lucide-react";
+import { Download, FileText, Video, Calendar, AlertCircle, Eye, RefreshCw } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PageLayout } from "@/components/PageLayout";
 import { MediaViewer } from "@/components/MediaViewer";
@@ -17,8 +17,10 @@ export default function StudentMaterials() {
   }>({ isOpen: false, fileUrl: '', fileName: '', fileType: 'document' });
 
   // Fetch student's assigned materials
-  const { data: materials, isLoading } = useQuery<ClassMaterial[]>({
+  const { data: materials, isLoading, refetch } = useQuery<ClassMaterial[]>({
     queryKey: ["/api/student/materials"],
+    staleTime: 0,
+    cacheTime: 0,
   });
 
   const formatFileSize = (bytes: number) => {
@@ -70,6 +72,17 @@ export default function StudentMaterials() {
       title="Class Materials" 
       subtitle="Access your assigned course materials and resources"
     >
+      <div className="mb-4">
+        <Button 
+          onClick={() => refetch()} 
+          variant="outline" 
+          size="sm"
+          disabled={isLoading}
+        >
+          <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
+      </div>
 
       {activeMaterials.length === 0 && expiredMaterials.length === 0 && (
         <Card>
