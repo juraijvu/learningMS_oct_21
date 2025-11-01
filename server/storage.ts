@@ -264,36 +264,55 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateModuleProgress(progressData: InsertModuleProgress): Promise<ModuleProgress> {
-    const existing = await db
-      .select()
-      .from(moduleProgress)
-      .where(
-        and(
-          eq(moduleProgress.studentId, progressData.studentId),
-          eq(moduleProgress.moduleId, progressData.moduleId)
-        )
-      );
+    try {
+      console.log('[Storage] Updating module progress:', progressData);
+      
+      // Use a transaction to handle race conditions
+      const result = await db.transaction(async (tx) => {
+        const existing = await tx
+          .select()
+          .from(moduleProgress)
+          .where(
+            and(
+              eq(moduleProgress.studentId, progressData.studentId),
+              eq(moduleProgress.moduleId, progressData.moduleId)
+            )
+          );
 
-    if (existing.length > 0) {
-      const [updated] = await db
-        .update(moduleProgress)
-        .set({
-          isCompleted: progressData.isCompleted,
-          completedBy: progressData.completedBy,
-          completedAt: progressData.isCompleted ? new Date() : null,
-        })
-        .where(eq(moduleProgress.id, existing[0].id))
-        .returning();
-      return updated;
-    } else {
-      const [created] = await db
-        .insert(moduleProgress)
-        .values({
-          ...progressData,
-          completedAt: progressData.isCompleted ? new Date() : null,
-        })
-        .returning();
-      return created;
+        console.log('[Storage] Existing progress records found:', existing.length);
+
+        if (existing.length > 0) {
+          // Update existing progress
+          console.log('[Storage] Updating existing progress record:', existing[0].id);
+          const [updated] = await tx
+            .update(moduleProgress)
+            .set({
+              isCompleted: progressData.isCompleted,
+              completedBy: progressData.completedBy,
+              completedAt: progressData.isCompleted ? new Date() : null,
+            })
+            .where(eq(moduleProgress.id, existing[0].id))
+            .returning();
+          return updated;
+        } else {
+          // Create new progress record
+          console.log('[Storage] Creating new progress record');
+          const [created] = await tx
+            .insert(moduleProgress)
+            .values({
+              ...progressData,
+              completedAt: progressData.isCompleted ? new Date() : null,
+            })
+            .returning();
+          return created;
+        }
+      });
+      
+      console.log('[Storage] Module progress updated successfully:', result.id);
+      return result;
+    } catch (error) {
+      console.error('[Storage] Error updating module progress:', error);
+      throw error;
     }
   }
 

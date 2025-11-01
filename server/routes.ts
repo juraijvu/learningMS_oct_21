@@ -126,6 +126,33 @@ const requireRole = (roles: string[]) => {
 };
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Configure multer for file uploads
+  const upload = multer({
+    dest: 'uploads/',
+    limits: { fileSize: 100 * 1024 * 1024 }, // 100MB limit
+    fileFilter: (req, file, cb) => {
+      // Accept videos, documents, and images
+      const allowedTypes = [
+        'video/mp4', 'video/mpeg', 'video/quicktime', 'video/x-msvideo', 'video/webm',
+        'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'text/plain',
+        'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'
+      ];
+      
+      if (allowedTypes.includes(file.mimetype)) {
+        cb(null, true);
+      } else {
+        cb(new Error('Invalid file type. Only videos, documents, and images are allowed.'));
+      }
+    }
+  });
+
+  // Health check endpoint
+  app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  });
+
   // Auth middleware
   setupAuth(app);
   
@@ -738,6 +765,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { moduleId } = req.params;
       const studentId = req.currentUser?.id || req.session?.userId;
       
+      if (!studentId) {
+        return res.status(401).json({ message: "Unauthorized - Student ID not found" });
+      }
+      
+      // Verify module exists
+      const [module] = await db.select().from(modules).where(eq(modules.id, moduleId));
+      if (!module) {
+        return res.status(404).json({ message: "Module not found" });
+      }
+      
+      // Verify student is enrolled in the course that contains this module
+      const [enrollment] = await db.select()
+        .from(enrollments)
+        .where(and(
+          eq(enrollments.studentId, studentId),
+          eq(enrollments.courseId, module.courseId)
+        ));
+      
+      if (!enrollment) {
+        return res.status(403).json({ message: "You are not enrolled in the course that contains this module" });
+      }
+      
+      // Check if module is already completed
+      const [existingProgress] = await db.select()
+        .from(moduleProgress)
+        .where(and(
+          eq(moduleProgress.studentId, studentId),
+          eq(moduleProgress.moduleId, moduleId)
+        ));
+      
+      if (existingProgress && existingProgress.isCompleted) {
+        return res.status(400).json({ message: "Module is already marked as complete" });
+      }
+      
       const progressData = {
         studentId,
         moduleId,
@@ -748,14 +809,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updatedProgress = await storage.updateModuleProgress(progressData);
       
       // Log activity
-      const [module] = await db.select().from(modules).where(eq(modules.id, moduleId));
-      if (module) {
-        await ActivityLogger.logModuleCompleted(studentId, moduleId, module.title, req);
-      }
+      await ActivityLogger.logModuleCompleted(studentId, moduleId, module.title, req);
       
-      res.json(updatedProgress);
+      res.json({
+        ...updatedProgress,
+        message: "Module marked as complete successfully"
+      });
     } catch (error) {
       console.error("Error marking module complete:", error);
+      
+      // Provide more specific error messages
+      if (error.message?.includes('duplicate key')) {
+        return res.status(409).json({ message: "Module completion already in progress" });
+      }
+      
       res.status(500).json({ message: "Failed to mark module as complete" });
     }
   });
@@ -1536,12 +1603,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Trainer: Upload task file
+  app.post("/api/trainer/tasks/upload-file", isAuthenticated, requireRole(['trainer']), upload.single('file'), async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      const fileUrl = `/uploads/${req.file.filename}`;
+      
+      res.json({ 
+        success: true,
+        fileUrl,
+        fileName: req.file.originalname
+      });
+    } catch (error) {
+      if (req.file) {
+        await fs.unlink(req.file.path).catch(() => {});
+      }
+      console.error("Error uploading task file:", error);
+      res.status(500).json({ success: false, message: "Failed to upload file" });
+    }
+  });
+
   // Trainer: Create task
   app.post("/api/trainer/tasks", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
     try {
       const trainerId = req.currentUser.id;
-      const taskData = insertTaskSchema.parse({
+      
+      // Clean up the request body to handle empty strings
+      const cleanedBody = {
         ...req.body,
+        trainerFileUrl: req.body.trainerFileUrl || null,
+        trainerFileName: req.body.trainerFileName || null,
+      };
+      
+      const taskData = insertTaskSchema.parse({
+        ...cleanedBody,
         assignedBy: trainerId,
       });
       
@@ -1733,28 +1831,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Class Materials Routes
-  
-  // Configure multer for file uploads
-  const upload = multer({
-    dest: 'uploads/',
-    limits: { fileSize: 100 * 1024 * 1024 }, // 100MB limit
-    fileFilter: (req, file, cb) => {
-      // Accept videos, documents, and images
-      const allowedTypes = [
-        'video/mp4', 'video/mpeg', 'video/quicktime', 'video/x-msvideo', 'video/webm',
-        'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-        'text/plain',
-        'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'
-      ];
-      
-      if (allowedTypes.includes(file.mimetype)) {
-        cb(null, true);
-      } else {
-        cb(new Error('Invalid file type. Only videos, documents, and images are allowed.'));
-      }
-    }
-  });
 
   // Trainer: Upload class material
   app.post("/api/class-materials", isAuthenticated, requireRole(['trainer']), upload.single('file'), async (req: any, res) => {
@@ -1978,6 +2054,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching trainer materials:", error);
       res.status(500).json({ message: "Failed to fetch materials" });
+    }
+  });
+
+  // Download task file
+  app.get("/api/tasks/download/:id", isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const [task] = await db.select().from(tasks).where(eq(tasks.id, id));
+      
+      if (!task) {
+        return res.status(404).json({ message: "Task not found" });
+      }
+      
+      if (!task.trainerFileUrl) {
+        return res.status(404).json({ message: "No file attached to this task" });
+      }
+
+      const filePath = path.join(process.cwd(), task.trainerFileUrl);
+      
+      // Check if file exists
+      try {
+        await fs.access(filePath);
+      } catch {
+        return res.status(404).json({ message: "File not found on server" });
+      }
+
+      res.download(filePath, task.trainerFileName || 'task-file');
+    } catch (error) {
+      console.error("Error downloading task file:", error);
+      res.status(500).json({ message: "Failed to download task file" });
     }
   });
 

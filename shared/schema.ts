@@ -101,6 +101,10 @@ export const tasks = pgTable("tasks", {
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
   assignedBy: varchar("assigned_by").notNull().references(() => users.id),
+  // Trainer uploaded files (task materials)
+  trainerFileUrl: varchar("trainer_file_url", { length: 500 }),
+  trainerFileName: varchar("trainer_file_name", { length: 255 }),
+  // Student submission file
   fileUrl: varchar("file_url", { length: 500 }),
   status: varchar("status", { enum: ['pending', 'submitted', 'approved', 'needs_revision'] }).notNull().default('pending'),
   trainerComment: text("trainer_comment"),

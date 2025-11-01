@@ -64,21 +64,47 @@ export default function StudentCourseDetail() {
   });
 
   const completeModuleMutation = useMutation({
-    mutationFn: (moduleId: string) =>
-      apiRequest(`/api/student/progress/${moduleId}/complete`, {
-        method: "POST",
-      }),
-    onSuccess: () => {
+    mutationFn: async (moduleId: string) => {
+      try {
+        return await apiRequest(`/api/student/progress/${moduleId}/complete`, {
+          method: "POST",
+        });
+      } catch (error: any) {
+        console.error('[Client] API request failed:', error);
+        throw error;
+      }
+    },
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/student/progress'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/student/courses'] });
       toast({
         title: "Module Completed!",
-        description: "You've marked this module as complete.",
+        description: data?.message || "You've marked this module as complete.",
       });
     },
-    onError: () => {
+    onError: (error: any) => {
+      console.error('[Client] Module completion error:', error);
+      
+      let errorMessage = "Failed to mark module as complete. Please try again.";
+      
+      // Handle network errors
+      if (error.message === 'Failed to fetch' || error.name === 'TypeError') {
+        errorMessage = "Network error: Please check if the server is running and try again.";
+      } else if (error?.message) {
+        errorMessage = error.message;
+      } else if (error?.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error?.status === 401) {
+        errorMessage = "You are not authorized to complete this module.";
+      } else if (error?.status === 403) {
+        errorMessage = "You are not enrolled in this course.";
+      } else if (error?.status === 404) {
+        errorMessage = "Module not found.";
+      }
+      
       toast({
         title: "Error",
-        description: "Failed to mark module as complete. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     },
@@ -249,7 +275,16 @@ export default function StudentCourseDetail() {
                           <Button
                             size="sm"
                             className="mt-3"
-                            onClick={() => completeModuleMutation.mutate(module.id)}
+                            onClick={async () => {
+                              console.log('[Client] Attempting to complete module:', module.id);
+                              if (!completeModuleMutation.isPending) {
+                                try {
+                                  completeModuleMutation.mutate(module.id);
+                                } catch (error) {
+                                  console.error('[Client] Button click error:', error);
+                                }
+                              }
+                            }}
                             disabled={completeModuleMutation.isPending}
                             data-testid={`button-complete-${module.id}`}
                           >

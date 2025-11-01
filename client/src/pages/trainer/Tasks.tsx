@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { ClipboardList, CheckCircle, Clock, Plus, Download, ThumbsUp, ThumbsDown } from "lucide-react";
+import { ClipboardList, CheckCircle, Clock, Plus, Download, ThumbsUp, ThumbsDown, Upload, FileText, X } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -24,6 +24,8 @@ interface Task {
   studentId: string;
   studentName?: string;
   fileUrl?: string;
+  trainerFileUrl?: string;
+  trainerFileName?: string;
 }
 
 export default function TrainerTasks() {
@@ -36,7 +38,11 @@ export default function TrainerTasks() {
     moduleId: "",
     title: "",
     description: "",
+    trainerFileUrl: "",
+    trainerFileName: "",
   });
+  
+  const [uploadingFile, setUploadingFile] = useState(false);
 
   const { data: tasks, isLoading } = useQuery<Task[]>({
     queryKey: ["/api/trainer/tasks"],
@@ -70,15 +76,59 @@ export default function TrainerTasks() {
 
 
 
+  // File upload mutation
+  const uploadFileMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch('/api/trainer/tasks/upload-file', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to upload file');
+      }
+      
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setTaskForm(prev => ({
+        ...prev,
+        trainerFileUrl: data.fileUrl,
+        trainerFileName: data.fileName,
+      }));
+      setUploadingFile(false);
+      toast({
+        title: "Success",
+        description: "File uploaded successfully",
+      });
+    },
+    onError: (error: Error) => {
+      setUploadingFile(false);
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   // Create task mutation
   const createTaskMutation = useMutation({
     mutationFn: async (taskData: any) => {
       const tasks = await Promise.all(
         selectedStudents.map(async studentId => {
-          const response = await apiRequest("POST", "/api/trainer/tasks", {
+          const taskPayload = {
             ...taskData,
             studentId,
-          });
+          };
+          const response = await apiRequest("POST", "/api/trainer/tasks", taskPayload);
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Failed to create task: ${errorText}`);
+          }
           return response.json();
         })
       );
@@ -91,7 +141,7 @@ export default function TrainerTasks() {
         description: `Task assigned to ${selectedStudents.length} student(s) successfully`,
       });
       setCreateDialogOpen(false);
-      setTaskForm({ courseId: "", moduleId: "", title: "", description: "" });
+      setTaskForm({ courseId: "", moduleId: "", title: "", description: "", trainerFileUrl: "", trainerFileName: "" });
       setSelectedStudents([]);
     },
     onError: (error: Error) => {
@@ -147,6 +197,22 @@ export default function TrainerTasks() {
     },
   });
 
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setUploadingFile(true);
+      uploadFileMutation.mutate(file);
+    }
+  };
+  
+  const removeFile = () => {
+    setTaskForm(prev => ({
+      ...prev,
+      trainerFileUrl: "",
+      trainerFileName: "",
+    }));
+  };
+
   const handleCreateTask = () => {
     if (!taskForm.courseId || !taskForm.moduleId || !taskForm.title || selectedStudents.length === 0) {
       toast({
@@ -157,7 +223,14 @@ export default function TrainerTasks() {
       return;
     }
 
-    createTaskMutation.mutate(taskForm);
+    // Prepare task data, converting empty strings to null for optional fields
+    const taskData = {
+      ...taskForm,
+      trainerFileUrl: taskForm.trainerFileUrl || null,
+      trainerFileName: taskForm.trainerFileName || null,
+    };
+
+    createTaskMutation.mutate(taskData);
   };
 
   if (isLoading) {
@@ -271,6 +344,46 @@ export default function TrainerTasks() {
                   rows={3}
                 />
               </div>
+              
+              <div>
+                <Label>Attach File (Optional)</Label>
+                <div className="space-y-2">
+                  {!taskForm.trainerFileUrl ? (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="file"
+                        onChange={handleFileUpload}
+                        disabled={uploadingFile}
+                        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif"
+                        className="file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                      />
+                      {uploadingFile && (
+                        <div className="flex items-center gap-2 text-sm text-blue-600">
+                          <Upload className="h-4 w-4 animate-spin" />
+                          Uploading...
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 p-2 bg-blue-50 rounded border">
+                      <FileText className="h-4 w-4 text-blue-600" />
+                      <span className="text-sm text-blue-700 flex-1">{taskForm.trainerFileName}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={removeFile}
+                        className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
+                  <p className="text-xs text-gray-500">
+                    Upload plans, drawings, or reference materials for students (PDF, DOC, DOCX, JPG, PNG)
+                  </p>
+                </div>
+              </div>
 
               <div className="space-y-2 max-h-[200px] overflow-y-auto">
                 <Label>Assign to Students *</Label>
@@ -365,6 +478,23 @@ export default function TrainerTasks() {
                     </Badge>
                   </div>
                   <p className="text-sm text-blue-600 mb-3">{task.description}</p>
+                  
+                  {task.trainerFileUrl && (
+                    <div className="mb-3 p-2 bg-blue-50 rounded border">
+                      <div className="flex items-center gap-2 text-sm text-blue-700">
+                        <FileText className="h-4 w-4" />
+                        <span className="flex-1">Attached: {task.trainerFileName || 'Task File'}</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => window.open(`/api/tasks/download/${task.id}`, '_blank')}
+                          className="h-6 px-2 text-blue-600 hover:text-blue-800"
+                        >
+                          <Download className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                   
                   {task.status === 'submitted' && (
                     <div className="flex items-center gap-2">

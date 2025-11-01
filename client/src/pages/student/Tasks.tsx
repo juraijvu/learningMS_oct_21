@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ClipboardList, Upload, CheckCircle, Clock, AlertCircle } from "lucide-react";
+import { ClipboardList, Upload, CheckCircle, Clock, AlertCircle, Download, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -122,8 +122,30 @@ export default function StudentTasks() {
                           <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">{task.trainerComment}</p>
                         </div>
                       )}
+                      
+                      {(task as any).trainerFileUrl && (
+                        <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                          <p className="text-sm font-medium text-blue-900 dark:text-blue-200 mb-2">Task Materials:</p>
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-4 w-4 text-blue-600" />
+                            <span className="text-sm text-blue-700 dark:text-blue-300 flex-1">
+                              {(task as any).trainerFileName || 'Task File'}
+                            </span>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => window.open(`/api/tasks/download/${task.id}`, '_blank')}
+                              className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                            >
+                              <Download className="h-3 w-3 mr-1" />
+                              Download
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                      
                       <div className="space-y-2">
-                        <Label htmlFor={`file-${task.id}`}>Upload File</Label>
+                        <Label htmlFor={`file-${task.id}`}>Upload Your Solution</Label>
                         <div className="flex gap-2">
                           <Input
                             id={`file-${task.id}`}
@@ -175,7 +197,27 @@ export default function StudentTasks() {
                       </Badge>
                     </div>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="space-y-3">
+                    {(task as any).trainerFileUrl && (
+                      <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                        <p className="text-sm font-medium text-blue-900 dark:text-blue-200 mb-2">Task Materials:</p>
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-blue-600" />
+                          <span className="text-sm text-blue-700 dark:text-blue-300 flex-1">
+                            {(task as any).trainerFileName || 'Task File'}
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => window.open(`/api/tasks/download/${task.id}`, '_blank')}
+                            className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                          >
+                            <Download className="h-3 w-3 mr-1" />
+                            Download
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                     <p className="text-sm text-muted-foreground">
                       Submitted: {task.submittedAt ? new Date(task.submittedAt).toLocaleString() : 'N/A'}
                     </p>
@@ -212,14 +254,34 @@ export default function StudentTasks() {
                       </Badge>
                     </div>
                   </CardHeader>
-                  {task.trainerComment && (
-                    <CardContent>
+                  <CardContent className="space-y-3">
+                    {(task as any).trainerFileUrl && (
+                      <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                        <p className="text-sm font-medium text-blue-900 dark:text-blue-200 mb-2">Task Materials:</p>
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-blue-600" />
+                          <span className="text-sm text-blue-700 dark:text-blue-300 flex-1">
+                            {(task as any).trainerFileName || 'Task File'}
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => window.open(`/api/tasks/download/${task.id}`, '_blank')}
+                            className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                          >
+                            <Download className="h-3 w-3 mr-1" />
+                            Download
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                    {task.trainerComment && (
                       <div className="p-3 rounded-lg bg-muted">
                         <p className="text-sm font-medium">Trainer's Feedback:</p>
                         <p className="text-sm text-muted-foreground mt-1">{task.trainerComment}</p>
                       </div>
-                    </CardContent>
-                  )}
+                    )}
+                  </CardContent>
                 </Card>
               ))}
             </div>
