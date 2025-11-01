@@ -59,13 +59,8 @@ export default function SalesCreateSchedule() {
   });
 
   const { data: existingSchedule } = useQuery({
-    queryKey: ['/api/sales/schedules', scheduleId],
-    queryFn: async () => {
-      if (!scheduleId) return null;
-      const response = await apiRequest('GET', `/api/sales/schedules/${scheduleId}`);
-      return response.json();
-    },
-    enabled: isEditing,
+    queryKey: [`/api/sales/schedules/${scheduleId}`],
+    enabled: isEditing && !!scheduleId,
   });
 
   const form = useForm<z.infer<typeof scheduleSchema>>({
@@ -84,28 +79,32 @@ export default function SalesCreateSchedule() {
     mutationFn: async (data: z.infer<typeof scheduleSchema>) => {
       if (isEditing) {
         // Update existing schedule
-        const response = await apiRequest("PUT", `/api/sales/schedules/${scheduleId}`, {
-          courseId: data.courseId,
-          studentId: data.studentId,
-          trainerId: data.trainerId,
-          weekStart: data.weekStart,
-          dayOfWeek: data.daysOfWeek[0], // Take first selected day for single schedule
-          timeSlot: data.timeSlot,
+        return await apiRequest(`/api/sales/schedules/${scheduleId}`, {
+          method: "PUT",
+          body: {
+            courseId: data.courseId,
+            studentId: data.studentId,
+            trainerId: data.trainerId,
+            weekStart: data.weekStart,
+            dayOfWeek: data.daysOfWeek[0], // Take first selected day for single schedule
+            timeSlot: data.timeSlot,
+          },
         });
-        return response.json();
       } else {
         // Create multiple schedule entries for each selected day
         const schedules = await Promise.all(
           data.daysOfWeek.map(async (dayOfWeek) => {
-            const response = await apiRequest("POST", "/api/sales/schedules", {
-              courseId: data.courseId,
-              studentId: data.studentId,
-              trainerId: data.trainerId,
-              weekStart: data.weekStart,
-              dayOfWeek,
-              timeSlot: data.timeSlot,
+            return await apiRequest("/api/sales/schedules", {
+              method: "POST",
+              body: {
+                courseId: data.courseId,
+                studentId: data.studentId,
+                trainerId: data.trainerId,
+                weekStart: data.weekStart,
+                dayOfWeek,
+                timeSlot: data.timeSlot,
+              },
             });
-            return response.json();
           })
         );
         return schedules;

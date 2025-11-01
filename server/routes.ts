@@ -1447,6 +1447,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           eq(schedules.courseId, schedule.courseId)
         ));
       
+      // Log activity
+      const [course] = await db.select().from(courses).where(eq(courses.id, schedule.courseId));
+      await ActivityLogger.logScheduleStatusChanged(
+        req.currentUser?.id || req.session?.userId,
+        schedule.studentId,
+        course?.title || 'Unknown Course',
+        schedule.status || 'active',
+        status,
+        updatedCount.count,
+        req
+      );
+      
       res.json({ 
         message: `Updated ${updatedCount.count} schedules to ${status}`,
         updatedCount: updatedCount.count

@@ -41,8 +41,7 @@ export default function SalesSchedules() {
 
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const response = await apiRequest("PATCH", `/api/sales/schedules/${id}/status`, { status });
-      return response.json();
+      return await apiRequest(`/api/sales/schedules/${id}/status`, { method: "PATCH", body: { status } });
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/sales/schedules"] });
@@ -52,8 +51,8 @@ export default function SalesSchedules() {
       });
       setConfirmDialog(prev => ({ ...prev, open: false }));
     },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to update schedule status", variant: "destructive" });
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message || "Failed to update schedule status", variant: "destructive" });
       setConfirmDialog(prev => ({ ...prev, open: false }));
     },
   });

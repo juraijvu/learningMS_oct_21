@@ -55,13 +55,8 @@ export default function AdminCreateSchedule() {
   });
 
   const { data: existingSchedule } = useQuery({
-    queryKey: ['/api/admin/schedules', scheduleId],
-    queryFn: async () => {
-      if (!scheduleId) return null;
-      const response = await apiRequest('GET', `/api/admin/schedules/${scheduleId}`);
-      return response.json();
-    },
-    enabled: isEditing,
+    queryKey: [`/api/admin/schedules/${scheduleId}`],
+    enabled: isEditing && !!scheduleId,
   });
 
   const students = allUsers?.filter(u => u.role === 'student') || [];
@@ -83,28 +78,32 @@ export default function AdminCreateSchedule() {
     mutationFn: async (data: z.infer<typeof scheduleSchema>) => {
       if (isEditing) {
         // Update existing schedule
-        const response = await apiRequest("PUT", `/api/admin/schedules/${scheduleId}`, {
-          courseId: data.courseId,
-          studentId: data.studentId,
-          trainerId: data.trainerId,
-          weekStart: data.weekStart,
-          dayOfWeek: data.daysOfWeek[0], // Take first selected day for single schedule
-          timeSlot: data.timeSlot,
+        return await apiRequest(`/api/admin/schedules/${scheduleId}`, {
+          method: "PUT",
+          body: {
+            courseId: data.courseId,
+            studentId: data.studentId,
+            trainerId: data.trainerId,
+            weekStart: data.weekStart,
+            dayOfWeek: data.daysOfWeek[0], // Take first selected day for single schedule
+            timeSlot: data.timeSlot,
+          },
         });
-        return response.json();
       } else {
         // Create multiple schedule entries for each selected day
         const schedules = await Promise.all(
           data.daysOfWeek.map(async (dayOfWeek) => {
-            const response = await apiRequest("POST", "/api/admin/schedules", {
-              courseId: data.courseId,
-              studentId: data.studentId,
-              trainerId: data.trainerId,
-              weekStart: data.weekStart,
-              dayOfWeek,
-              timeSlot: data.timeSlot,
+            return await apiRequest("/api/admin/schedules", {
+              method: "POST",
+              body: {
+                courseId: data.courseId,
+                studentId: data.studentId,
+                trainerId: data.trainerId,
+                weekStart: data.weekStart,
+                dayOfWeek,
+                timeSlot: data.timeSlot,
+              },
             });
-            return response.json();
           })
         );
         return schedules;
