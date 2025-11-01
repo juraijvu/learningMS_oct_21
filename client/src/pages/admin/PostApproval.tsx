@@ -27,7 +27,7 @@ export default function PostApproval() {
 
   const approveMutation = useMutation({
     mutationFn: async (postId: string) => {
-      return await apiRequest("PATCH", `/api/admin/posts/${postId}/approve`, {});
+      return await apiRequest(`/api/admin/posts/${postId}/approve`, { method: "PATCH", body: {} });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/posts/pending"] });
@@ -40,7 +40,7 @@ export default function PostApproval() {
 
   const rejectMutation = useMutation({
     mutationFn: async (postId: string) => {
-      return await apiRequest("PATCH", `/api/admin/posts/${postId}/reject`, {});
+      return await apiRequest(`/api/admin/posts/${postId}/reject`, { method: "PATCH", body: {} });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/posts/pending"] });
