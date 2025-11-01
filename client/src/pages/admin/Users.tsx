@@ -27,7 +27,7 @@ export default function UsersManagement() {
 
   const createUserMutation = useMutation({
     mutationFn: async (userData: typeof newUser) => {
-      return await apiRequest("POST", "/api/admin/users", userData);
+      return await apiRequest("/api/admin/users", { method: "POST", body: userData });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
