@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, BookOpen, FileText, Tag } from "lucide-react";
+import { Plus, BookOpen, FileText, Tag, Edit, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,20 +16,19 @@ import { PageLayout } from "@/components/PageLayout";
 import type { Course } from "@shared/schema";
 
 const COURSE_CATEGORIES = [
-  "Programming",
-  "Web Development",
-  "Data Science",
-  "Design",
-  "Business",
-  "Marketing",
-  "Photography",
-  "Music",
-  "Language",
-  "Other"
+  "Computer & Development",
+  "Architecture & Engineering",
+  "Networking & Security",
+  "Designing & Modelling",
+  "Interior Design Programs",
+  "Solar & Renewal Energy",
+  "IT & Digital Marketing",
+  "Electrical Engineering"
 ];
 
 export default function CoursesManagement() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingCourse, setEditingCourse] = useState<Course | null>(null);
   const [newCourse, setNewCourse] = useState({ title: "", description: "", category: "", imageUrl: "", pdfUrl: "" });
   const [coursePageUrl, setCoursePageUrl] = useState("");
   const [isFetchingMetadata, setIsFetchingMetadata] = useState(false);
@@ -50,6 +49,37 @@ export default function CoursesManagement() {
       setIsDialogOpen(false);
       setNewCourse({ title: "", description: "", category: "", imageUrl: "", pdfUrl: "" });
       setCoursePageUrl("");
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const updateCourseMutation = useMutation({
+    mutationFn: async ({ id, courseData }: { id: string; courseData: typeof newCourse }) => {
+      return await apiRequest(`/api/admin/courses/${id}`, { method: "PUT", body: courseData });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/courses"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/courses"] });
+      toast({ title: "Success", description: "Course updated successfully" });
+      setIsDialogOpen(false);
+      setEditingCourse(null);
+      setNewCourse({ title: "", description: "", category: "", imageUrl: "", pdfUrl: "" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const deleteCourseMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await apiRequest(`/api/admin/courses/${id}`, { method: "DELETE" });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/courses"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/courses"] });
+      toast({ title: "Success", description: "Course deleted successfully" });
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -88,6 +118,38 @@ export default function CoursesManagement() {
     }
   };
 
+  const handleEdit = (course: Course) => {
+    setEditingCourse(course);
+    setNewCourse({
+      title: course.title,
+      description: course.description,
+      category: course.category || "",
+      imageUrl: course.imageUrl || "",
+      pdfUrl: course.pdfUrl || ""
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleDelete = (course: Course) => {
+    if (confirm(`Are you sure you want to delete "${course.title}"? This action cannot be undone.`)) {
+      deleteCourseMutation.mutate(course.id);
+    }
+  };
+
+  const handleSubmit = () => {
+    if (editingCourse) {
+      updateCourseMutation.mutate({ id: editingCourse.id, courseData: newCourse });
+    } else {
+      createCourseMutation.mutate(newCourse);
+    }
+  };
+
+  const resetForm = () => {
+    setEditingCourse(null);
+    setNewCourse({ title: "", description: "", category: "", imageUrl: "", pdfUrl: "" });
+    setCoursePageUrl("");
+  };
+
   if (isLoading) {
     return (
       <PageLayout title="Course Management" subtitle="Loading courses...">
@@ -115,8 +177,8 @@ export default function CoursesManagement() {
       </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Create New Course</DialogTitle>
-              <DialogDescription>Add a new course to the system</DialogDescription>
+              <DialogTitle>{editingCourse ? "Edit Course" : "Create New Course"}</DialogTitle>
+              <DialogDescription>{editingCourse ? "Update course information" : "Add a new course to the system"}</DialogDescription>
             </DialogHeader>
             <div className="space-y-4 pt-4">
               <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
@@ -207,14 +269,29 @@ export default function CoursesManagement() {
                   placeholder="https://example.com/course-material.pdf"
                 />
               </div>
-              <Button 
-                className="w-full" 
-                onClick={() => createCourseMutation.mutate(newCourse)}
-                disabled={createCourseMutation.isPending}
-                data-testid="button-submit-course"
-              >
-                {createCourseMutation.isPending ? "Creating..." : "Create Course"}
-              </Button>
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline"
+                  className="flex-1" 
+                  onClick={() => {
+                    setIsDialogOpen(false);
+                    resetForm();
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  className="flex-1" 
+                  onClick={handleSubmit}
+                  disabled={createCourseMutation.isPending || updateCourseMutation.isPending}
+                  data-testid="button-submit-course"
+                >
+                  {editingCourse 
+                    ? (updateCourseMutation.isPending ? "Updating..." : "Update Course")
+                    : (createCourseMutation.isPending ? "Creating..." : "Create Course")
+                  }
+                </Button>
+              </div>
             </div>
           </DialogContent>
     </Dialog>
@@ -285,13 +362,37 @@ export default function CoursesManagement() {
                     Course PDF
                   </a>
                 )}
-                <div className="mt-4 flex gap-2">
-                  <Button variant="outline" size="sm" asChild className="flex-1 border-blue-200 text-blue-700 hover:bg-blue-50">
-                    <a href={`/courses/${course.id}/modules`}>Manage Modules</a>
-                  </Button>
-                  <Button variant="outline" size="sm" asChild className="flex-1 border-blue-200 text-blue-700 hover:bg-blue-50">
-                    <a href={`/courses/${course.id}/assign`}>Assign Trainers</a>
-                  </Button>
+                <div className="mt-4 space-y-2">
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" asChild className="flex-1 border-blue-200 text-blue-700 hover:bg-blue-50">
+                      <a href={`/courses/${course.id}/modules`}>Manage Modules</a>
+                    </Button>
+                    <Button variant="outline" size="sm" asChild className="flex-1 border-blue-200 text-blue-700 hover:bg-blue-50">
+                      <a href={`/courses/${course.id}/assign`}>Assign Trainers</a>
+                    </Button>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => handleEdit(course)}
+                      className="flex-1 border-green-200 text-green-700 hover:bg-green-50"
+                      data-testid={`button-edit-${course.id}`}
+                    >
+                      <Edit className="h-4 w-4 mr-1" />
+                      Edit
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => handleDelete(course)}
+                      className="flex-1 border-red-200 text-red-700 hover:bg-red-50"
+                      data-testid={`button-delete-${course.id}`}
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      Delete
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>

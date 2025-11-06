@@ -69,6 +69,8 @@ export interface IStorage {
   getAllCourses(): Promise<Course[]>;
   getCourse(id: string): Promise<Course | undefined>;
   createCourse(course: InsertCourse): Promise<Course>;
+  updateCourse(id: string, updates: Partial<Course>): Promise<Course>;
+  deleteCourse(id: string): Promise<void>;
   
   // Module operations
   getModulesByCourse(courseId: string): Promise<Module[]>;
@@ -202,6 +204,21 @@ export class DatabaseStorage implements IStorage {
       .values(courseData)
       .returning();
     return course;
+  }
+
+  async updateCourse(id: string, updates: Partial<Course>): Promise<Course> {
+    const [course] = await db
+      .update(courses)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(courses.id, id))
+      .returning();
+    return course;
+  }
+
+  async deleteCourse(id: string): Promise<void> {
+    await db
+      .delete(courses)
+      .where(eq(courses.id, id));
   }
 
   // Module operations

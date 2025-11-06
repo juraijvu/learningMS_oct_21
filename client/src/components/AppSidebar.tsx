@@ -190,7 +190,7 @@ export function AppSidebar({ className }: { className?: string }) {
                     <Link 
                       href={item.url} 
                       data-testid={item.testId}
-                      className="flex items-center gap-3 px-4 py-6 text-blue-100 hover:text-blue-900 hover:bg-white/90 hover:mx-2 rounded-xl transition-all duration-300 group-hover:translate-x-2 group-hover:shadow-lg"
+                      className="flex items-center gap-3 px-4 py-6 text-blue-100 hover:text-white hover:bg-white/90 hover:mx-2 rounded-xl transition-all duration-300 group-hover:translate-x-2 group-hover:shadow-lg"
                       onClick={() => {
                         if (isMobile) {
                           setOpenMobile(false);
@@ -200,7 +200,7 @@ export function AppSidebar({ className }: { className?: string }) {
                       <div className="w-9 h-9 flex items-center justify-center bg-blue-700/60 rounded-xl group-hover:bg-blue-600 group-hover:scale-110 transition-all duration-300">
                         <item.icon className="h-5 w-5" />
                       </div>
-                      <span className="font-semibold group-hover:text-lg group-hover:text-blue-900 transition-all duration-300">{item.title}</span>
+                      <span className="font-semibold group-hover:text-lg group-hover:text-white transition-all duration-300">{item.title}</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

@@ -498,6 +498,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin: Update course
+  app.put("/api/admin/courses/:id", isAuthenticated, requireRole(['admin']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const courseData = insertCourseSchema.partial().parse(req.body);
+      
+      const updatedCourse = await storage.updateCourse(id, courseData);
+      
+      // Log activity
+      const adminId = req.currentUser?.id || req.session?.userId;
+      if (adminId) {
+        await ActivityLogger.logCourseUpdated(adminId, id, req);
+      }
+      
+      res.json(updatedCourse);
+    } catch (error) {
+      console.error("Error updating course:", error);
+      res.status(500).json({ message: "Failed to update course" });
+    }
+  });
+
+  // Admin: Delete course
+  app.delete("/api/admin/courses/:id", isAuthenticated, requireRole(['admin']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      await storage.deleteCourse(id);
+      
+      // Log activity
+      const adminId = req.currentUser?.id || req.session?.userId;
+      if (adminId) {
+        await ActivityLogger.logCourseDeleted(adminId, id, req);
+      }
+      
+      res.json({ message: "Course deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting course:", error);
+      res.status(500).json({ message: "Failed to delete course" });
+    }
+  });
+
   // Admin: Fetch course metadata from URL (extracts OG image and description)
   app.post("/api/admin/courses/fetch-metadata", isAuthenticated, requireRole(['admin']), async (req, res) => {
     try {

@@ -59,6 +59,22 @@ export class ActivityLogger {
     });
   }
 
+  static async logCourseUpdated(userId: string, courseId: string, req?: Request): Promise<void> {
+    await this.log(userId, 'course_updated', {
+      req,
+      entityType: 'course',
+      entityId: courseId,
+    });
+  }
+
+  static async logCourseDeleted(userId: string, courseId: string, req?: Request): Promise<void> {
+    await this.log(userId, 'course_deleted', {
+      req,
+      entityType: 'course',
+      entityId: courseId,
+    });
+  }
+
   static async logCourseAssignedToTrainer(
     adminId: string,
     trainerId: string,
