@@ -1,10 +1,13 @@
 import { useParams } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, BookOpen, FileText, CheckCircle, Download, Video, FileIcon } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -47,6 +50,8 @@ interface ClassMaterial {
 export default function StudentCourseDetail() {
   const { courseId } = useParams<{ courseId: string }>();
   const { toast } = useToast();
+  const [confirmDialog, setConfirmDialog] = useState<{ open: boolean; moduleId: string; moduleTitle: string }>({ open: false, moduleId: '', moduleTitle: '' });
+  const [confirmed, setConfirmed] = useState(false);
 
   const { data: course, isLoading: loadingCourse } = useQuery<Course>({
     queryKey: [`/api/courses/${courseId}`],
@@ -290,15 +295,9 @@ export default function StudentCourseDetail() {
                           <Button
                             size="sm"
                             className="mt-3"
-                            onClick={async () => {
-                              console.log('[Client] Attempting to complete module:', module.id);
-                              if (!completeModuleMutation.isPending) {
-                                try {
-                                  completeModuleMutation.mutate(module.id);
-                                } catch (error) {
-                                  console.error('[Client] Button click error:', error);
-                                }
-                              }
+                            onClick={() => {
+                              setConfirmDialog({ open: true, moduleId: module.id, moduleTitle: module.title });
+                              setConfirmed(false);
                             }}
                             disabled={completeModuleMutation.isPending}
                             data-testid={`button-complete-${module.id}`}
@@ -316,6 +315,51 @@ export default function StudentCourseDetail() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={confirmDialog.open} onOpenChange={(open) => setConfirmDialog({ ...confirmDialog, open })}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Module Completion</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to mark "{confirmDialog.moduleTitle}" as complete?
+            </p>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="confirm-completion"
+                checked={confirmed}
+                onCheckedChange={(checked) => setConfirmed(checked === true)}
+              />
+              <label
+                htmlFor="confirm-completion"
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              >
+                I confirm that I have fully reviewed and understood this module
+              </label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setConfirmDialog({ open: false, moduleId: '', moduleTitle: '' })}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (confirmed) {
+                  completeModuleMutation.mutate(confirmDialog.moduleId);
+                  setConfirmDialog({ open: false, moduleId: '', moduleTitle: '' });
+                }
+              }}
+              disabled={!confirmed || completeModuleMutation.isPending}
+            >
+              {completeModuleMutation.isPending ? "Marking..." : "Mark as Complete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

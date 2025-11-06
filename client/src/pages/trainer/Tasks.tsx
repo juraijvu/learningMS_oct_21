@@ -63,15 +63,21 @@ export default function TrainerTasks() {
     queryKey: ["/api/courses", taskForm.courseId, "modules"],
     queryFn: async () => {
       if (!taskForm.courseId) {
-        throw new Error('No course ID provided');
+        return [];
       }
       
-      const response = await apiRequest("GET", `/api/courses/${taskForm.courseId}/modules`);
-      const result = await response.json();
-      console.log('Modules loaded:', result);
-      return result;
+      try {
+        const result = await apiRequest(`/api/courses/${taskForm.courseId}/modules`, {
+          method: "GET"
+        });
+        return result || [];
+      } catch (error) {
+        console.error('Error fetching modules:', error);
+        throw error;
+      }
     },
     enabled: !!taskForm.courseId,
+    retry: 1,
   });
 
 
@@ -124,12 +130,10 @@ export default function TrainerTasks() {
             ...taskData,
             studentId,
           };
-          const response = await apiRequest("POST", "/api/trainer/tasks", taskPayload);
-          if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Failed to create task: ${errorText}`);
-          }
-          return response.json();
+          return await apiRequest("/api/trainer/tasks", {
+            method: "POST",
+            body: taskPayload
+          });
         })
       );
       return tasks;
@@ -156,8 +160,9 @@ export default function TrainerTasks() {
   // Approve task mutation
   const approveTaskMutation = useMutation({
     mutationFn: async (taskId: string) => {
-      const response = await apiRequest("PATCH", `/api/trainer/tasks/${taskId}/approve`);
-      return response.json();
+      return await apiRequest(`/api/trainer/tasks/${taskId}/approve`, {
+        method: "PATCH"
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/trainer/tasks"] });
@@ -178,8 +183,9 @@ export default function TrainerTasks() {
   // Reject task mutation
   const rejectTaskMutation = useMutation({
     mutationFn: async (taskId: string) => {
-      const response = await apiRequest("PATCH", `/api/trainer/tasks/${taskId}/reject`);
-      return response.json();
+      return await apiRequest(`/api/trainer/tasks/${taskId}/reject`, {
+        method: "PATCH"
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/trainer/tasks"] });
@@ -317,7 +323,7 @@ export default function TrainerTasks() {
                       ))
                     ) : taskForm.courseId ? (
                       <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                        {modulesError ? 'Error loading modules' : 'No modules available in this course'}
+                        {modulesError ? `Error loading modules: ${modulesError.message || 'Unknown error'}` : 'No modules available in this course'}
                       </div>
                     ) : null}
                   </SelectContent>
