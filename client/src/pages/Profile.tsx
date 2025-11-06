@@ -68,7 +68,7 @@ export default function Profile() {
         credentials: 'include',
       });
       
-      if (!response.ok) throw new Error('Failed to update profile');
+      if (!response.ok) throw new Error('Failed to update profile (mandatory: Update profile picture)');
       return response.json();
     },
     onSuccess: () => {
@@ -78,7 +78,7 @@ export default function Profile() {
       toast({ title: "Success", description: "Profile updated successfully!" });
     },
     onError: () => {
-      toast({ title: "Error", description: "Failed to update profile", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to update profile (mandatory: Update profile picture)", variant: "destructive" });
     },
   });
 
