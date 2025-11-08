@@ -6,11 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, BookOpen, ArrowLeft, GripVertical } from "lucide-react";
+import { Plus, BookOpen, ArrowLeft, GripVertical, Edit, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 interface Module {
   id: string;
@@ -22,7 +23,9 @@ interface Module {
 export default function CourseModules() {
   const { courseId } = useParams<{ courseId: string }>();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingModule, setEditingModule] = useState<Module | null>(null);
   const [newModule, setNewModule] = useState({ title: "", subPoints: "" });
+  const [confirmDelete, setConfirmDelete] = useState<{ open: boolean; module: Module | null }>({ open: false, module: null });
   const { toast } = useToast();
 
   const { data: modules, isLoading } = useQuery<Module[]>({
@@ -36,8 +39,35 @@ export default function CourseModules() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/admin/courses/${courseId}/modules`] });
       toast({ title: "Success", description: "Module created successfully" });
-      setIsDialogOpen(false);
-      setNewModule({ title: "", subPoints: "" });
+      handleDialogClose();
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const updateModuleMutation = useMutation({
+    mutationFn: async ({ moduleId, moduleData }: { moduleId: string; moduleData: { title: string; subPoints: string[] } }) => {
+      return await apiRequest(`/api/admin/courses/${courseId}/modules/${moduleId}`, { method: "PUT", body: moduleData });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/admin/courses/${courseId}/modules`] });
+      toast({ title: "Success", description: "Module updated successfully" });
+      handleDialogClose();
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const deleteModuleMutation = useMutation({
+    mutationFn: async (moduleId: string) => {
+      return await apiRequest(`/api/admin/courses/${courseId}/modules/${moduleId}`, { method: "DELETE" });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/admin/courses/${courseId}/modules`] });
+      toast({ title: "Success", description: "Module deleted successfully" });
+      setConfirmDelete({ open: false, module: null });
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -50,10 +80,42 @@ export default function CourseModules() {
       .map(s => s.trim())
       .filter(s => s.length > 0);
     
-    createModuleMutation.mutate({
-      title: newModule.title,
-      subPoints,
+    if (editingModule) {
+      updateModuleMutation.mutate({
+        moduleId: editingModule.id,
+        moduleData: { title: newModule.title, subPoints }
+      });
+    } else {
+      createModuleMutation.mutate({
+        title: newModule.title,
+        subPoints,
+      });
+    }
+  };
+
+  const handleEditModule = (module: Module) => {
+    setEditingModule(module);
+    setNewModule({
+      title: module.title,
+      subPoints: module.subPoints?.join('\n') || ''
     });
+    setIsDialogOpen(true);
+  };
+
+  const handleDeleteModule = (module: Module) => {
+    setConfirmDelete({ open: true, module });
+  };
+
+  const confirmDeleteModule = () => {
+    if (confirmDelete.module) {
+      deleteModuleMutation.mutate(confirmDelete.module.id);
+    }
+  };
+
+  const handleDialogClose = () => {
+    setIsDialogOpen(false);
+    setEditingModule(null);
+    setNewModule({ title: "", subPoints: "" });
   };
 
   if (isLoading) {
@@ -87,8 +149,8 @@ export default function CourseModules() {
           </DialogTrigger>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Create New Module</DialogTitle>
-              <DialogDescription>Add a new module to the course</DialogDescription>
+              <DialogTitle>{editingModule ? 'Edit Module' : 'Create New Module'}</DialogTitle>
+              <DialogDescription>{editingModule ? 'Update the module details' : 'Add a new module to the course'}</DialogDescription>
             </DialogHeader>
             <div className="space-y-4 pt-4">
               <div className="space-y-2">
@@ -116,10 +178,12 @@ export default function CourseModules() {
               <Button 
                 className="w-full" 
                 onClick={handleCreateModule}
-                disabled={createModuleMutation.isPending}
+                disabled={createModuleMutation.isPending || updateModuleMutation.isPending}
                 data-testid="button-submit-module"
               >
-                {createModuleMutation.isPending ? "Creating..." : "Create Module"}
+                {(createModuleMutation.isPending || updateModuleMutation.isPending) 
+                  ? (editingModule ? "Updating..." : "Creating...") 
+                  : (editingModule ? "Update Module" : "Create Module")}
               </Button>
             </div>
           </DialogContent>
@@ -157,12 +221,41 @@ export default function CourseModules() {
                       </ul>
                     )}
                   </div>
+                  <div className="flex gap-1">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleEditModule(module)}
+                      data-testid={`button-edit-module-${module.id}`}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleDeleteModule(module)}
+                      data-testid={`button-delete-module-${module.id}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
             </Card>
           ))}
         </div>
       )}
+      
+      <ConfirmDialog
+        open={confirmDelete.open}
+        onOpenChange={(open) => setConfirmDelete({ open, module: null })}
+        title="Delete Module"
+        description={`Are you sure you want to delete "${confirmDelete.module?.title}"? This action cannot be undone.`}
+        variant="destructive"
+        onConfirm={confirmDeleteModule}
+        confirmText="Delete"
+        cancelText="Cancel"
+      />
     </div>
   );
 }

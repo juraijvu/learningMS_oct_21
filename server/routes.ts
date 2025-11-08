@@ -1623,12 +1623,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/admin/courses/:courseId/modules", isAuthenticated, requireRole(['admin']), async (req, res) => {
     try {
       const { courseId } = req.params;
-      const moduleData = insertModuleSchema.parse({ ...req.body, courseId });
+      
+      // Get the current highest order for this course
+      const existingModules = await storage.getModulesByCourse(courseId);
+      const nextOrder = existingModules.length > 0 
+        ? Math.max(...existingModules.map(m => m.order || 0)) + 1 
+        : 1;
+      
+      const moduleData = insertModuleSchema.parse({ 
+        ...req.body, 
+        courseId,
+        order: nextOrder
+      });
       const module = await storage.createModule(moduleData);
       res.json(module);
     } catch (error) {
       console.error("Error creating module:", error);
       res.status(500).json({ message: "Failed to create module" });
+    }
+  });
+
+  // Admin: Update course module
+  app.put("/api/admin/courses/:courseId/modules/:moduleId", isAuthenticated, requireRole(['admin']), async (req, res) => {
+    try {
+      const { moduleId } = req.params;
+      const moduleData = insertModuleSchema.partial().parse(req.body);
+      const updatedModule = await storage.updateModule(moduleId, moduleData);
+      res.json(updatedModule);
+    } catch (error) {
+      console.error("Error updating module:", error);
+      res.status(500).json({ message: "Failed to update module" });
+    }
+  });
+
+  // Admin: Delete course module
+  app.delete("/api/admin/courses/:courseId/modules/:moduleId", isAuthenticated, requireRole(['admin']), async (req, res) => {
+    try {
+      const { moduleId } = req.params;
+      await storage.deleteModule(moduleId);
+      res.json({ message: "Module deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting module:", error);
+      res.status(500).json({ message: "Failed to delete module" });
     }
   });
 

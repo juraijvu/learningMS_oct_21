@@ -75,6 +75,8 @@ export interface IStorage {
   // Module operations
   getModulesByCourse(courseId: string): Promise<Module[]>;
   createModule(module: InsertModule): Promise<Module>;
+  updateModule(id: string, updates: Partial<Module>): Promise<Module>;
+  deleteModule(id: string): Promise<void>;
   
   // Enrollment operations
   getEnrollmentsByStudent(studentId: string): Promise<Enrollment[]>;
@@ -236,6 +238,32 @@ export class DatabaseStorage implements IStorage {
       .values(moduleData)
       .returning();
     return module;
+  }
+
+  async updateModule(id: string, updates: Partial<Module>): Promise<Module> {
+    // Get the current module to preserve the order if not explicitly updated
+    const [currentModule] = await db.select().from(modules).where(eq(modules.id, id));
+    if (!currentModule) {
+      throw new Error('Module not found');
+    }
+    
+    const [module] = await db
+      .update(modules)
+      .set({ 
+        ...updates, 
+        // Preserve the original order if not explicitly provided in updates
+        order: updates.order !== undefined ? updates.order : currentModule.order,
+        updatedAt: new Date() 
+      })
+      .where(eq(modules.id, id))
+      .returning();
+    return module;
+  }
+
+  async deleteModule(id: string): Promise<void> {
+    await db
+      .delete(modules)
+      .where(eq(modules.id, id));
   }
 
   // Enrollment operations
