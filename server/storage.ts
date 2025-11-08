@@ -18,6 +18,8 @@ import {
   posts,
   postComments,
   postLikes,
+  trainerSharedFiles,
+  trainerFileAssignments,
   type User,
   type UpsertUser,
   type Course,
@@ -52,6 +54,10 @@ import {
   type InsertPostComment,
   type PostLike,
   type InsertPostLike,
+  type TrainerSharedFile,
+  type InsertTrainerSharedFile,
+  type TrainerFileAssignment,
+  type InsertTrainerFileAssignment,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
@@ -164,6 +170,16 @@ export interface IStorage {
   
   // Profile operations
   updateUserProfile(userId: string, updates: Partial<User>): Promise<User>;
+  
+  // Trainer shared files operations
+  createTrainerSharedFile(file: InsertTrainerSharedFile): Promise<TrainerSharedFile>;
+  getTrainerSharedFilesByUploader(uploaderId: string): Promise<TrainerSharedFile[]>;
+  getTrainerSharedFilesForTrainer(trainerId: string): Promise<TrainerSharedFile[]>;
+  getTrainerSharedFileById(id: string): Promise<TrainerSharedFile | undefined>;
+  deleteTrainerSharedFile(id: string): Promise<void>;
+  deleteExpiredTrainerFiles(): Promise<number>;
+  assignFileToTrainer(fileId: string, trainerId: string): Promise<TrainerFileAssignment>;
+  getFileAssignments(fileId: string): Promise<TrainerFileAssignment[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -893,6 +909,90 @@ export class DatabaseStorage implements IStorage {
       .where(eq(users.id, userId))
       .returning();
     return user;
+  }
+  
+  // Trainer shared files operations
+  async createTrainerSharedFile(fileData: InsertTrainerSharedFile): Promise<TrainerSharedFile> {
+    const [file] = await db
+      .insert(trainerSharedFiles)
+      .values(fileData)
+      .returning();
+    return file;
+  }
+
+  async getTrainerSharedFilesByUploader(uploaderId: string): Promise<TrainerSharedFile[]> {
+    return await db
+      .select()
+      .from(trainerSharedFiles)
+      .where(eq(trainerSharedFiles.uploadedBy, uploaderId))
+      .orderBy(desc(trainerSharedFiles.uploadedAt));
+  }
+
+  async getTrainerSharedFilesForTrainer(trainerId: string): Promise<TrainerSharedFile[]> {
+    const assignments = await db
+      .select()
+      .from(trainerFileAssignments)
+      .where(eq(trainerFileAssignments.trainerId, trainerId));
+    
+    if (assignments.length === 0) return [];
+    
+    const fileIds = assignments.map(a => a.fileId);
+    return await db
+      .select()
+      .from(trainerSharedFiles)
+      .where(inArray(trainerSharedFiles.id, fileIds))
+      .orderBy(desc(trainerSharedFiles.uploadedAt));
+  }
+
+  async getTrainerSharedFileById(id: string): Promise<TrainerSharedFile | undefined> {
+    const [file] = await db
+      .select()
+      .from(trainerSharedFiles)
+      .where(eq(trainerSharedFiles.id, id));
+    return file;
+  }
+
+  async deleteTrainerSharedFile(id: string): Promise<void> {
+    await db
+      .delete(trainerSharedFiles)
+      .where(eq(trainerSharedFiles.id, id));
+  }
+
+  async deleteExpiredTrainerFiles(): Promise<number> {
+    const now = new Date();
+    const result = await db
+      .delete(trainerSharedFiles)
+      .where(sql`${trainerSharedFiles.expiresAt} < ${now}`)
+      .returning();
+    return result.length;
+  }
+
+  async assignFileToTrainer(fileId: string, trainerId: string): Promise<TrainerFileAssignment> {
+    // Check if assignment already exists
+    const existing = await db
+      .select()
+      .from(trainerFileAssignments)
+      .where(and(
+        eq(trainerFileAssignments.fileId, fileId),
+        eq(trainerFileAssignments.trainerId, trainerId)
+      ));
+    
+    if (existing.length > 0) {
+      return existing[0];
+    }
+    
+    const [assignment] = await db
+      .insert(trainerFileAssignments)
+      .values({ fileId, trainerId })
+      .returning();
+    return assignment;
+  }
+
+  async getFileAssignments(fileId: string): Promise<TrainerFileAssignment[]> {
+    return await db
+      .select()
+      .from(trainerFileAssignments)
+      .where(eq(trainerFileAssignments.fileId, fileId));
   }
 }
 

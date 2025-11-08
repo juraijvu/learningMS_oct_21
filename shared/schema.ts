@@ -262,6 +262,32 @@ export const postLikes = pgTable("post_likes", {
   index("idx_likes_user").on(table.userId),
 ]);
 
+// Trainer shared files
+export const trainerSharedFiles = pgTable("trainer_shared_files", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  uploadedBy: varchar("uploaded_by").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  fileUrl: varchar("file_url", { length: 500 }).notNull(),
+  fileName: varchar("file_name", { length: 255 }).notNull(),
+  fileSize: integer("file_size").notNull(),
+  uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+}, (table) => [
+  index("idx_trainer_files_uploaded_by").on(table.uploadedBy),
+  index("idx_trainer_files_expires").on(table.expiresAt),
+]);
+
+// Trainer file assignments
+export const trainerFileAssignments = pgTable("trainer_file_assignments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  fileId: varchar("file_id").notNull().references(() => trainerSharedFiles.id, { onDelete: 'cascade' }),
+  trainerId: varchar("trainer_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  assignedAt: timestamp("assigned_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_trainer_file_assignment_unique").on(table.fileId, table.trainerId),
+]);
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   enrollments: many(enrollments),
@@ -442,6 +468,25 @@ export const postLikesRelations = relations(postLikes, ({ one }) => ({
   }),
 }));
 
+export const trainerSharedFilesRelations = relations(trainerSharedFiles, ({ one, many }) => ({
+  uploader: one(users, {
+    fields: [trainerSharedFiles.uploadedBy],
+    references: [users.id],
+  }),
+  assignments: many(trainerFileAssignments),
+}));
+
+export const trainerFileAssignmentsRelations = relations(trainerFileAssignments, ({ one }) => ({
+  file: one(trainerSharedFiles, {
+    fields: [trainerFileAssignments.fileId],
+    references: [trainerSharedFiles.id],
+  }),
+  trainer: one(users, {
+    fields: [trainerFileAssignments.trainerId],
+    references: [users.id],
+  }),
+}));
+
 // Type exports
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
@@ -496,6 +541,12 @@ export type PostComment = typeof postComments.$inferSelect;
 
 export type InsertPostLike = typeof postLikes.$inferInsert;
 export type PostLike = typeof postLikes.$inferSelect;
+
+export type InsertTrainerSharedFile = typeof trainerSharedFiles.$inferInsert;
+export type TrainerSharedFile = typeof trainerSharedFiles.$inferSelect;
+
+export type InsertTrainerFileAssignment = typeof trainerFileAssignments.$inferInsert;
+export type TrainerFileAssignment = typeof trainerFileAssignments.$inferSelect;
 
 // Insert schemas for validation
 export const insertUserSchema = createInsertSchema(users).omit({
@@ -591,4 +642,14 @@ export const insertPostCommentSchema = createInsertSchema(postComments).omit({
 export const insertPostLikeSchema = createInsertSchema(postLikes).omit({
   id: true,
   createdAt: true,
+});
+
+export const insertTrainerSharedFileSchema = createInsertSchema(trainerSharedFiles).omit({
+  id: true,
+  uploadedAt: true,
+});
+
+export const insertTrainerFileAssignmentSchema = createInsertSchema(trainerFileAssignments).omit({
+  id: true,
+  assignedAt: true,
 });

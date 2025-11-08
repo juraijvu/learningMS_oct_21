@@ -3,7 +3,7 @@ import express from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated, hashPassword, verifyPassword } from "./auth";
-import { insertCourseSchema, insertModuleSchema, insertEnrollmentSchema, insertTaskSchema, insertScheduleSchema, insertQuerySchema, insertUserSchema, insertTrainerAssignmentSchema, insertClassMaterialSchema, insertAttendanceSchema, insertEnrollmentRequestSchema, insertPostSchema, insertPostCommentSchema, classMaterials, posts, postComments, postLikes } from "@shared/schema";
+import { insertCourseSchema, insertModuleSchema, insertEnrollmentSchema, insertTaskSchema, insertScheduleSchema, insertQuerySchema, insertUserSchema, insertTrainerAssignmentSchema, insertClassMaterialSchema, insertAttendanceSchema, insertEnrollmentRequestSchema, insertPostSchema, insertPostCommentSchema, insertTrainerSharedFileSchema, classMaterials, posts, postComments, postLikes, trainerSharedFiles } from "@shared/schema";
 import { db } from "./db";
 import { courses, modules, enrollments, users, trainerAssignments, moduleProgress, tasks, schedules, queries, attendance, enrollmentRequests } from "@shared/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
@@ -2447,6 +2447,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Trainer: Get other trainers (for file sharing)
+  app.get("/api/trainer/trainers", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
+    try {
+      const currentTrainerId = req.currentUser.id;
+      const allUsers = await storage.getAllUsers();
+      const otherTrainers = allUsers
+        .filter(u => u.role === 'trainer' && u.id !== currentTrainerId)
+        .map(u => {
+          const { passwordHash, ...userWithoutPassword } = u;
+          return userWithoutPassword;
+        });
+      res.json(otherTrainers);
+    } catch (error) {
+      console.error("Error fetching other trainers:", error);
+      res.status(500).json({ message: "Failed to fetch trainers" });
+    }
+  });
+
   // Admin: Get all students
   app.get("/api/admin/students", isAuthenticated, requireRole(['admin', 'sales_consultant']), async (req: any, res) => {
     try {
@@ -2972,6 +2990,230 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // ============ TRAINER SHARED FILES ROUTES ============
+  
+  // Configure multer for trainer shared files (allow all file types)
+  const trainerFileUpload = multer({
+    dest: 'uploads/',
+    limits: { fileSize: 100 * 1024 * 1024 }, // 100MB limit
+    fileFilter: (req, file, cb) => {
+      // Allow all file types for trainer shared files
+      cb(null, true);
+    }
+  });
+
+  // Trainer: Upload shared file
+  app.post("/api/trainer/shared-files", isAuthenticated, requireRole(['trainer']), trainerFileUpload.single('file'), async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      const uploadSchema = z.object({
+        title: z.string().min(1),
+        description: z.string().optional(),
+      });
+
+      const data = uploadSchema.parse(req.body);
+      const trainerId = req.currentUser.id;
+
+      // Calculate expiration date (5 days from now)
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 5);
+
+      // Create file record
+      const file = await storage.createTrainerSharedFile({
+        uploadedBy: trainerId,
+        title: data.title,
+        description: data.description || null,
+        fileUrl: `/uploads/${req.file.filename}`,
+        fileName: req.file.originalname,
+        fileSize: req.file.size,
+        expiresAt,
+      });
+
+      res.json(file);
+    } catch (error) {
+      // Clean up uploaded file if there's an error
+      if (req.file) {
+        await fs.unlink(req.file.path).catch(() => {});
+      }
+      
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid input", errors: error.errors });
+      }
+      console.error("Error uploading trainer shared file:", error);
+      res.status(500).json({ message: "Failed to upload file" });
+    }
+  });
+
+  // Trainer: Get my uploaded files
+  app.get("/api/trainer/shared-files/uploaded", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
+    try {
+      const trainerId = req.currentUser.id;
+      const files = await storage.getTrainerSharedFilesByUploader(trainerId);
+      res.json(files);
+    } catch (error) {
+      console.error("Error fetching uploaded files:", error);
+      res.status(500).json({ message: "Failed to fetch files" });
+    }
+  });
+
+  // Trainer: Get files shared with me
+  app.get("/api/trainer/shared-files/assigned", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
+    try {
+      const trainerId = req.currentUser.id;
+      const files = await storage.getTrainerSharedFilesForTrainer(trainerId);
+      
+      // Enrich with uploader details
+      const filesWithDetails = await Promise.all(
+        files.map(async (file) => {
+          const uploader = await storage.getUser(file.uploadedBy);
+          return {
+            ...file,
+            uploaderName: uploader ? `${uploader.firstName || ''} ${uploader.lastName || ''}`.trim() || uploader.username : 'Unknown',
+          };
+        })
+      );
+      
+      res.json(filesWithDetails);
+    } catch (error) {
+      console.error("Error fetching assigned files:", error);
+      res.status(500).json({ message: "Failed to fetch files" });
+    }
+  });
+
+  // Trainer: Assign file to other trainers
+  app.post("/api/trainer/shared-files/:fileId/assign", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
+    try {
+      const { fileId } = req.params;
+      const assignSchema = z.object({
+        trainerIds: z.array(z.string()).min(1),
+      });
+
+      const { trainerIds } = assignSchema.parse(req.body);
+      
+      // Verify file exists and belongs to trainer
+      const file = await storage.getTrainerSharedFileById(fileId);
+      if (!file) {
+        return res.status(404).json({ message: "File not found" });
+      }
+      
+      if (file.uploadedBy !== req.currentUser.id) {
+        return res.status(403).json({ message: "You can only assign your own files" });
+      }
+
+      // Assign to each trainer
+      const assignments = await Promise.all(
+        trainerIds.map(trainerId => storage.assignFileToTrainer(fileId, trainerId))
+      );
+
+      res.json({ 
+        message: `File assigned to ${trainerIds.length} trainer(s)`,
+        assignments
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid input", errors: error.errors });
+      }
+      console.error("Error assigning file:", error);
+      res.status(500).json({ message: "Failed to assign file" });
+    }
+  });
+
+  // Trainer: Delete shared file
+  app.delete("/api/trainer/shared-files/:id", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const file = await storage.getTrainerSharedFileById(id);
+      
+      if (!file) {
+        return res.status(404).json({ message: "File not found" });
+      }
+
+      // Check if the trainer is the owner
+      if (file.uploadedBy !== req.currentUser.id) {
+        return res.status(403).json({ message: "You can only delete your own files" });
+      }
+
+      // Delete file from filesystem
+      const filePath = path.join(process.cwd(), file.fileUrl);
+      await fs.unlink(filePath).catch(() => {});
+
+      // Delete from database
+      await storage.deleteTrainerSharedFile(id);
+
+      res.json({ message: "File deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting trainer shared file:", error);
+      res.status(500).json({ message: "Failed to delete file" });
+    }
+  });
+
+  // Trainer: Download shared file
+  app.get("/api/trainer/shared-files/download/:id", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const file = await storage.getTrainerSharedFileById(id);
+      
+      if (!file) {
+        return res.status(404).json({ message: "File not found" });
+      }
+      
+      const trainerId = req.currentUser.id;
+      
+      // Check if trainer has access (either owner or assigned)
+      const hasAccess = file.uploadedBy === trainerId || 
+        (await storage.getFileAssignments(id)).some(a => a.trainerId === trainerId);
+      
+      if (!hasAccess) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const filePath = path.join(process.cwd(), file.fileUrl);
+      
+      // Check if file exists
+      try {
+        await fs.access(filePath);
+      } catch {
+        return res.status(404).json({ message: "File not found on server" });
+      }
+
+      res.download(filePath, file.fileName);
+    } catch (error) {
+      console.error("Error downloading trainer shared file:", error);
+      res.status(500).json({ message: "Failed to download file" });
+    }
+  });
+
+  // Admin: Cleanup expired trainer files
+  app.post("/api/admin/trainer-files/cleanup", isAuthenticated, requireRole(['admin']), async (req, res) => {
+    try {
+      // Get expired files before deleting
+      const expiredFiles = await db
+        .select()
+        .from(trainerSharedFiles)
+        .where(sql`${trainerSharedFiles.expiresAt} < ${new Date()}`);
+
+      // Delete files from filesystem
+      for (const file of expiredFiles) {
+        const filePath = path.join(process.cwd(), file.fileUrl);
+        await fs.unlink(filePath).catch(() => {});
+      }
+
+      // Delete from database
+      const deletedCount = await storage.deleteExpiredTrainerFiles();
+
+      res.json({ 
+        message: `Cleaned up ${deletedCount} expired trainer files`,
+        count: deletedCount 
+      });
+    } catch (error) {
+      console.error("Error cleaning up expired trainer files:", error);
+      res.status(500).json({ message: "Failed to cleanup files" });
+    }
+  });
+
   // ============ PROFILE ROUTES ============
   
   // Upload profile image

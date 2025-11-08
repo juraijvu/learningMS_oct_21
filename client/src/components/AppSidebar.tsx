@@ -12,7 +12,8 @@ import {
   Settings,
   UserCheck,
   Hash,
-  User
+  User,
+  Share
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
@@ -98,6 +99,7 @@ const menuItems = {
     { title: "Students", url: "/students", icon: Users, testId: "link-trainer-students" },
     { title: "Tasks", url: "/tasks", icon: ClipboardList, testId: "link-trainer-tasks" },
     { title: "Class Materials", url: "/materials", icon: FileText, testId: "link-trainer-materials" },
+    { title: "Shared Files", url: "/shared-files", icon: Share, testId: "link-trainer-shared-files" },
     { title: "Queries", url: "/queries", icon: MessageSquare, testId: "link-trainer-queries" },
     { title: "Schedule", url: "/schedule", icon: Calendar, testId: "link-trainer-schedule" },
   ],

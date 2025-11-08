@@ -11,7 +11,7 @@ import { PasswordChangeDialog } from "@/components/PasswordChangeDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
-import { LayoutDashboard, Users, BookOpen, Calendar, User, FileText } from "lucide-react";
+import { LayoutDashboard, Users, BookOpen, Calendar, User, FileText, Share } from "lucide-react";
 
 const menuItems = {
   admin: [
@@ -32,6 +32,7 @@ const menuItems = {
     { title: "Dashboard", url: "/", icon: LayoutDashboard },
     { title: "Courses", url: "/courses", icon: BookOpen },
     { title: "Students", url: "/students", icon: Users },
+    { title: "Shared Files", url: "/shared-files", icon: Share },
     { title: "Schedule", url: "/schedule", icon: Calendar },
     { title: "Profile", url: "/profile", icon: User },
   ],
@@ -80,6 +81,7 @@ import TrainerCourseStudents from "@/pages/trainer/CourseStudents";
 import TrainerClassMaterials from "@/pages/trainer/ClassMaterials";
 import TrainerAttendance from "@/pages/trainer/Attendance";
 import TrainerQueries from "@/pages/trainer/Queries";
+import TrainerSharedFiles from "@/pages/trainer/SharedFiles";
 
 // Student Pages
 import StudentDashboard from "@/pages/student/Dashboard";
@@ -144,6 +146,7 @@ function TrainerRoutes() {
       <Route path="/students" component={TrainerStudents} />
       <Route path="/tasks" component={TrainerTasks} />
       <Route path="/materials" component={TrainerClassMaterials} />
+      <Route path="/shared-files" component={TrainerSharedFiles} />
       <Route path="/queries" component={TrainerQueries} />
       <Route path="/attendance" component={TrainerAttendance} />
       <Route path="/schedule" component={TrainerSchedules} />
