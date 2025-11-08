@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { BookOpen, Clock } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { BookOpen, Clock, Eye } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageLayout } from "@/components/PageLayout";
 
@@ -75,11 +76,17 @@ export default function SalesCourses() {
                   {course.description}
                 </CardDescription>
               </CardHeader>
-              <CardContent className="p-6">
+              <CardContent className="p-6 space-y-4">
                 <div className="flex items-center gap-2 text-sm bg-blue-50 p-3 rounded-xl">
                   <Clock className="h-4 w-4 text-blue-600" />
                   <span className="text-blue-700 font-medium" data-testid={`duration-course-${course.id}`}>{course.duration}</span>
                 </div>
+                <Button size="sm" asChild className="w-full bg-blue-600 hover:bg-blue-700">
+                  <a href={`/courses/${course.id}/modules`} data-testid={`button-view-modules-${course.id}`}>
+                    <Eye className="h-4 w-4 mr-1" />
+                    View Modules
+                  </a>
+                </Button>
               </CardContent>
             </Card>
           ))}

@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { BookOpen, Users, FileText, Upload, Video, FileIcon } from "lucide-react";
+import { BookOpen, Users, FileText, Upload, Video, FileIcon, Eye } from "lucide-react";
 import { PageLayout } from "@/components/PageLayout";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -373,6 +373,12 @@ export default function TrainerCourses() {
                       </a>
                     </Button>
                   )}
+                  <Button variant="outline" size="sm" asChild className="border-blue-300 text-blue-700 hover:bg-blue-50">
+                    <a href={`/courses/${course.id}/modules`} data-testid={`button-view-modules-${course.id}`}>
+                      <Eye className="h-4 w-4 mr-1" />
+                      Modules
+                    </a>
+                  </Button>
                   <Button size="sm" asChild className="flex-1 bg-blue-600 hover:bg-blue-700">
                     <a href={`/courses/${course.id}/students`} data-testid={`button-view-students-${course.id}`}>
                       View Students

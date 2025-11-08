@@ -62,6 +62,7 @@ import AdminEnrollmentRequests from "@/pages/admin/EnrollmentRequests";
 import AdminPostApproval from "@/pages/admin/PostApproval";
 import Posts from "@/pages/Posts";
 import Profile from "@/pages/Profile";
+import SharedCourseModules from "@/pages/shared/CourseModules";
 
 // Sales Pages
 import SalesDashboard from "@/pages/sales/Dashboard";
@@ -124,6 +125,7 @@ function SalesRoutes() {
       <Route path="/profile" component={Profile} />
       <Route path="/posts" component={Posts} />
       <Route path="/courses" component={SalesCourses} />
+      <Route path="/courses/:courseId/modules" component={SharedCourseModules} />
       <Route path="/enroll" component={SalesEnrollStudent} />
       <Route path="/enrollment-requests" component={AdminEnrollmentRequests} />
       <Route path="/students" component={SalesStudents} />
@@ -142,6 +144,7 @@ function TrainerRoutes() {
       <Route path="/profile" component={Profile} />
       <Route path="/posts" component={Posts} />
       <Route path="/courses" component={TrainerCourses} />
+      <Route path="/courses/:courseId/modules" component={SharedCourseModules} />
       <Route path="/courses/:courseId/students" component={TrainerCourseStudents} />
       <Route path="/students" component={TrainerStudents} />
       <Route path="/tasks" component={TrainerTasks} />
