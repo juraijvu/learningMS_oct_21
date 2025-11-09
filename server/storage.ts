@@ -1012,8 +1012,10 @@ export class DatabaseStorage implements IStorage {
         moduleId: modules.id,
         moduleTitle: modules.title,
         moduleOrder: modules.order,
+        moduleSubPoints: modules.subPoints,
         isCompleted: sql<boolean>`CASE WHEN ${moduleProgress.isCompleted} IS NULL THEN false ELSE ${moduleProgress.isCompleted} END`,
         completedAt: moduleProgress.completedAt,
+        moduleCreatedAt: modules.createdAt,
       })
       .from(enrollments)
       .innerJoin(users, eq(enrollments.studentId, users.id))
@@ -1023,7 +1025,7 @@ export class DatabaseStorage implements IStorage {
         eq(moduleProgress.studentId, users.id),
         eq(moduleProgress.moduleId, modules.id)
       ))
-      .orderBy(users.firstName, courses.title, modules.order);
+      .orderBy(users.firstName, courses.title, sql`COALESCE(${modules.order}, 0)`, modules.createdAt);
 
     // Group by student and course
     const grouped = result.reduce((acc, row) => {
@@ -1045,8 +1047,10 @@ export class DatabaseStorage implements IStorage {
         id: row.moduleId,
         title: row.moduleTitle,
         order: row.moduleOrder,
+        subPoints: row.moduleSubPoints,
         isCompleted: row.isCompleted,
         completedAt: row.completedAt,
+        createdAt: row.moduleCreatedAt,
       });
       
       acc[key].totalModules++;
@@ -1059,6 +1063,17 @@ export class DatabaseStorage implements IStorage {
 
     return Object.values(grouped).map(item => ({
       ...item,
+      modules: item.modules.sort((a, b) => {
+        // First sort by order if both have valid orders
+        if (a.order && b.order) {
+          return a.order - b.order;
+        }
+        // If one has order and other doesn't, prioritize the one with order
+        if (a.order && !b.order) return -1;
+        if (!a.order && b.order) return 1;
+        // If neither has order, sort by creation date
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      }),
       progressPercentage: item.totalModules > 0 ? Math.round((item.completedModules / item.totalModules) * 100) : 0,
     }));
   }
@@ -1084,8 +1099,10 @@ export class DatabaseStorage implements IStorage {
         moduleId: modules.id,
         moduleTitle: modules.title,
         moduleOrder: modules.order,
+        moduleSubPoints: modules.subPoints,
         isCompleted: sql<boolean>`CASE WHEN ${moduleProgress.isCompleted} IS NULL THEN false ELSE ${moduleProgress.isCompleted} END`,
         completedAt: moduleProgress.completedAt,
+        moduleCreatedAt: modules.createdAt,
       })
       .from(enrollments)
       .innerJoin(users, eq(enrollments.studentId, users.id))
@@ -1096,7 +1113,7 @@ export class DatabaseStorage implements IStorage {
         eq(moduleProgress.moduleId, modules.id)
       ))
       .where(inArray(courses.id, courseIds))
-      .orderBy(users.firstName, courses.title, modules.order);
+      .orderBy(users.firstName, courses.title, sql`COALESCE(${modules.order}, 0)`, modules.createdAt);
 
     // Group by student and course
     const grouped = result.reduce((acc, row) => {
@@ -1118,8 +1135,10 @@ export class DatabaseStorage implements IStorage {
         id: row.moduleId,
         title: row.moduleTitle,
         order: row.moduleOrder,
+        subPoints: row.moduleSubPoints,
         isCompleted: row.isCompleted,
         completedAt: row.completedAt,
+        createdAt: row.moduleCreatedAt,
       });
       
       acc[key].totalModules++;
@@ -1132,6 +1151,17 @@ export class DatabaseStorage implements IStorage {
 
     return Object.values(grouped).map(item => ({
       ...item,
+      modules: item.modules.sort((a, b) => {
+        // First sort by order if both have valid orders
+        if (a.order && b.order) {
+          return a.order - b.order;
+        }
+        // If one has order and other doesn't, prioritize the one with order
+        if (a.order && !b.order) return -1;
+        if (!a.order && b.order) return 1;
+        // If neither has order, sort by creation date
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      }),
       progressPercentage: item.totalModules > 0 ? Math.round((item.completedModules / item.totalModules) * 100) : 0,
     }));
   }

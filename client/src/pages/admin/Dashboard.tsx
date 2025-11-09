@@ -1,11 +1,25 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, BookOpen, Calendar, GraduationCap } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Users, BookOpen, Calendar, GraduationCap, Settings, CheckCircle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { apiRequest } from "@/lib/queryClient";
 
 export default function AdminDashboard() {
+  const queryClient = useQueryClient();
   const { data: stats, isLoading } = useQuery({
     queryKey: ["/api/admin/stats"],
+  });
+
+  const fixModuleOrdersMutation = useMutation({
+    mutationFn: () => apiRequest("/api/admin/fix-module-orders", { method: "POST" }),
+    onSuccess: (data) => {
+      alert(`Successfully fixed ${data.fixedCount} module order values`);
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/student-progress"] });
+    },
+    onError: (error: any) => {
+      alert(error.message || "Failed to fix module orders");
+    },
   });
 
   if (isLoading) {
@@ -115,46 +129,80 @@ export default function AdminDashboard() {
             </Card>
           </div>
 
-          <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-xl rounded-2xl overflow-hidden">
-            <CardHeader className="bg-gradient-to-r from-indigo-600 to-indigo-700 text-white">
-              <CardTitle className="text-lg font-bold">Quick Actions</CardTitle>
-            </CardHeader>
-            <CardContent className="p-6 space-y-4">
-              <a href="/users" className="block p-4 rounded-xl bg-gradient-to-r from-blue-100 to-blue-200 hover:from-blue-200 hover:to-blue-300 transition-all duration-300 group border border-blue-200" data-testid="link-manage-users">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
-                    <Users className="h-6 w-6 text-white" />
+          <div className="space-y-6">
+            <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-xl rounded-2xl overflow-hidden">
+              <CardHeader className="bg-gradient-to-r from-indigo-600 to-indigo-700 text-white">
+                <CardTitle className="text-lg font-bold">Quick Actions</CardTitle>
+              </CardHeader>
+              <CardContent className="p-6 space-y-4">
+                <a href="/users" className="block p-4 rounded-xl bg-gradient-to-r from-blue-100 to-blue-200 hover:from-blue-200 hover:to-blue-300 transition-all duration-300 group border border-blue-200" data-testid="link-manage-users">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
+                      <Users className="h-6 w-6 text-white" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-blue-900">Manage Users</p>
+                      <p className="text-sm text-blue-700 font-medium">Add or edit accounts</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-bold text-blue-900">Manage Users</p>
-                    <p className="text-sm text-blue-700 font-medium">Add or edit accounts</p>
+                </a>
+                <a href="/courses" className="block p-4 rounded-xl bg-gradient-to-r from-green-100 to-green-200 hover:from-green-200 hover:to-green-300 transition-all duration-300 group border border-green-200" data-testid="link-manage-courses">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-gradient-to-r from-green-600 to-green-700 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
+                      <BookOpen className="h-6 w-6 text-white" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-green-900">Manage Courses</p>
+                      <p className="text-sm text-green-700 font-medium">Create and organize</p>
+                    </div>
+                  </div>
+                </a>
+                <a href="/schedules" className="block p-4 rounded-xl bg-gradient-to-r from-purple-100 to-purple-200 hover:from-purple-200 hover:to-purple-300 transition-all duration-300 group border border-purple-200" data-testid="link-manage-schedules">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-gradient-to-r from-purple-600 to-purple-700 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
+                      <Calendar className="h-6 w-6 text-white" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-purple-900">Manage Schedules</p>
+                      <p className="text-sm text-purple-700 font-medium">Set up weekly plans</p>
+                    </div>
+                  </div>
+                </a>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-xl rounded-2xl overflow-hidden">
+              <CardHeader className="bg-gradient-to-r from-orange-600 to-orange-700 text-white">
+                <CardTitle className="flex items-center gap-2 text-lg font-bold">
+                  <Settings className="h-5 w-5" />
+                  System Maintenance
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6">
+                <div className="space-y-4">
+                  <div className="p-4 rounded-xl bg-orange-50 border border-orange-200">
+                    <div className="flex items-start gap-3">
+                      <CheckCircle className="h-5 w-5 text-orange-600 mt-0.5" />
+                      <div className="flex-1">
+                        <h4 className="font-bold text-orange-900 mb-1">Fix Module Numbering</h4>
+                        <p className="text-sm text-orange-700 mb-3">
+                          Fix module order values for old courses to ensure proper numbering in student progress.
+                        </p>
+                        <Button 
+                          onClick={() => fixModuleOrdersMutation.mutate()}
+                          disabled={fixModuleOrdersMutation.isPending}
+                          size="sm"
+                          className="bg-orange-600 hover:bg-orange-700 text-white"
+                        >
+                          {fixModuleOrdersMutation.isPending ? "Fixing..." : "Fix Module Orders"}
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </a>
-              <a href="/courses" className="block p-4 rounded-xl bg-gradient-to-r from-green-100 to-green-200 hover:from-green-200 hover:to-green-300 transition-all duration-300 group border border-green-200" data-testid="link-manage-courses">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-gradient-to-r from-green-600 to-green-700 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
-                    <BookOpen className="h-6 w-6 text-white" />
-                  </div>
-                  <div>
-                    <p className="font-bold text-green-900">Manage Courses</p>
-                    <p className="text-sm text-green-700 font-medium">Create and organize</p>
-                  </div>
-                </div>
-              </a>
-              <a href="/schedules" className="block p-4 rounded-xl bg-gradient-to-r from-purple-100 to-purple-200 hover:from-purple-200 hover:to-purple-300 transition-all duration-300 group border border-purple-200" data-testid="link-manage-schedules">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-gradient-to-r from-purple-600 to-purple-700 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
-                    <Calendar className="h-6 w-6 text-white" />
-                  </div>
-                  <div>
-                    <p className="font-bold text-purple-900">Manage Schedules</p>
-                    <p className="text-sm text-purple-700 font-medium">Set up weekly plans</p>
-                  </div>
-                </div>
-              </a>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     </div>

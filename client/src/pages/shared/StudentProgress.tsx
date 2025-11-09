@@ -1,13 +1,10 @@
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { CheckCircle, Circle, User, BookOpen, Award } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/useAuth";
-import { apiRequest, queryClient } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
 
 interface StudentProgress {
   studentId: string;
@@ -22,6 +19,7 @@ interface StudentProgress {
     id: string;
     title: string;
     order: number;
+    subPoints?: string[];
     isCompleted: boolean;
     completedAt?: string;
   }[];
@@ -29,26 +27,9 @@ interface StudentProgress {
 
 export default function StudentProgress() {
   const { user } = useAuth();
-  const { toast } = useToast();
 
   const { data: progressData, isLoading } = useQuery<StudentProgress[]>({
     queryKey: [`/api/${user?.role === 'admin' ? 'admin' : user?.role === 'sales_consultant' ? 'sales' : 'trainer'}/student-progress`],
-  });
-
-  const toggleModuleMutation = useMutation({
-    mutationFn: async ({ studentId, moduleId, isCompleted }: { studentId: string; moduleId: string; isCompleted: boolean }) => {
-      return await apiRequest(`/api/${user?.role === 'admin' ? 'admin' : user?.role === 'sales_consultant' ? 'sales' : 'trainer'}/student-progress/${studentId}/module/${moduleId}`, {
-        method: "PATCH",
-        body: { isCompleted }
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/${user?.role === 'admin' ? 'admin' : user?.role === 'sales_consultant' ? 'sales' : 'trainer'}/student-progress`] });
-      toast({ title: "Success", description: "Module progress updated successfully" });
-    },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to update module progress", variant: "destructive" });
-    },
   });
 
   if (isLoading) {
@@ -92,7 +73,7 @@ export default function StudentProgress() {
         <Award className="h-8 w-8 text-blue-600" />
         <div>
           <h1 className="text-3xl font-semibold">Student Progress</h1>
-          <p className="text-muted-foreground">Track and manage student module completion</p>
+          <p className="text-muted-foreground">View student progress and module completion status</p>
         </div>
       </div>
 
@@ -147,34 +128,43 @@ export default function StudentProgress() {
                     <div className="grid gap-2">
                       <h4 className="font-medium text-sm">Module Progress:</h4>
                       <div className="grid gap-2">
-                        {student.modules.map((module) => (
-                          <div key={module.id} className="flex items-center justify-between p-2 rounded border bg-muted/30">
-                            <div className="flex items-center gap-2">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="p-1 h-6 w-6"
-                                onClick={() => toggleModuleMutation.mutate({
-                                  studentId: student.studentId,
-                                  moduleId: module.id,
-                                  isCompleted: !module.isCompleted
-                                })}
-                                disabled={toggleModuleMutation.isPending}
-                              >
-                                {module.isCompleted ? (
-                                  <CheckCircle className="h-4 w-4 text-green-600" />
-                                ) : (
-                                  <Circle className="h-4 w-4 text-muted-foreground" />
+                        {student.modules.map((module, index) => (
+                          <div key={module.id} className="p-2 rounded border bg-muted/30">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <div className="p-1 h-6 w-6 flex items-center justify-center">
+                                  {module.isCompleted ? (
+                                    <CheckCircle className="h-4 w-4 text-green-600" />
+                                  ) : (
+                                    <Circle className="h-4 w-4 text-muted-foreground" />
+                                  )}
+                                </div>
+                                <span className={`text-sm ${module.isCompleted ? 'text-green-700 font-medium' : ''}`}>
+                                  Module {index + 1}: {module.title}
+                                </span>
+                                {module.isCompleted && (
+                                  <Badge variant="secondary" className="text-xs bg-green-100 text-green-700">
+                                    Completed
+                                  </Badge>
                                 )}
-                              </Button>
-                              <span className={`text-sm ${module.isCompleted ? 'line-through text-muted-foreground' : ''}`}>
-                                Module {module.order}: {module.title}
-                              </span>
+                              </div>
+                              {module.isCompleted && module.completedAt && (
+                                <span className="text-xs text-muted-foreground">
+                                  {new Date(module.completedAt).toLocaleDateString()}
+                                </span>
+                              )}
                             </div>
-                            {module.isCompleted && module.completedAt && (
-                              <span className="text-xs text-muted-foreground">
-                                {new Date(module.completedAt).toLocaleDateString()}
-                              </span>
+                            {module.subPoints && module.subPoints.length > 0 && (
+                              <div className="mt-2 ml-8">
+                                <ul className="text-xs text-muted-foreground space-y-1">
+                                  {module.subPoints.map((point, pointIndex) => (
+                                    <li key={pointIndex} className="flex items-start gap-1">
+                                      <span className="text-muted-foreground mt-1">•</span>
+                                      <span>{point}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
                             )}
                           </div>
                         ))}

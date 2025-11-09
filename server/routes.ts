@@ -2491,6 +2491,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin: Fix module order values for old courses
+  app.post("/api/admin/fix-module-orders", isAuthenticated, requireRole(['admin']), async (req: any, res) => {
+    try {
+      // Get all courses
+      const allCourses = await db.select().from(courses);
+      let fixedCount = 0;
+      
+      for (const course of allCourses) {
+        // Get modules for this course ordered by creation date
+        const courseModules = await db
+          .select()
+          .from(modules)
+          .where(eq(modules.courseId, course.id))
+          .orderBy(modules.createdAt);
+        
+        // Check if any modules have null or 0 order
+        const needsFixing = courseModules.some(m => !m.order || m.order === 0);
+        
+        if (needsFixing) {
+          // Update each module with proper order based on creation date
+          for (let i = 0; i < courseModules.length; i++) {
+            const module = courseModules[i];
+            const newOrder = i + 1;
+            
+            if (!module.order || module.order === 0 || module.order !== newOrder) {
+              await db
+                .update(modules)
+                .set({ order: newOrder, updatedAt: new Date() })
+                .where(eq(modules.id, module.id));
+              fixedCount++;
+            }
+          }
+        }
+      }
+      
+      res.json({ 
+        message: `Fixed order values for ${fixedCount} modules`,
+        fixedCount 
+      });
+    } catch (error) {
+      console.error("Error fixing module orders:", error);
+      res.status(500).json({ message: "Failed to fix module orders" });
+    }
+  });
+
   // Sales: Get student progress
   app.get("/api/sales/student-progress", isAuthenticated, requireRole(['sales_consultant']), async (req: any, res) => {
     try {
@@ -2514,77 +2559,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Admin: Update student module progress
-  app.patch("/api/admin/student-progress/:studentId/module/:moduleId", isAuthenticated, requireRole(['admin']), async (req: any, res) => {
-    try {
-      const { studentId, moduleId } = req.params;
-      const { isCompleted } = req.body;
-      const adminId = req.currentUser.id;
-      
-      const progressData = {
-        studentId,
-        moduleId,
-        isCompleted,
-        completedBy: adminId,
-      };
-      
-      const updatedProgress = await storage.updateModuleProgress(progressData);
-      res.json(updatedProgress);
-    } catch (error) {
-      console.error("Error updating student progress:", error);
-      res.status(500).json({ message: "Failed to update progress" });
-    }
-  });
 
-  // Sales: Update student module progress
-  app.patch("/api/sales/student-progress/:studentId/module/:moduleId", isAuthenticated, requireRole(['sales_consultant']), async (req: any, res) => {
-    try {
-      const { studentId, moduleId } = req.params;
-      const { isCompleted } = req.body;
-      const salesId = req.currentUser.id;
-      
-      const progressData = {
-        studentId,
-        moduleId,
-        isCompleted,
-        completedBy: salesId,
-      };
-      
-      const updatedProgress = await storage.updateModuleProgress(progressData);
-      res.json(updatedProgress);
-    } catch (error) {
-      console.error("Error updating student progress:", error);
-      res.status(500).json({ message: "Failed to update progress" });
-    }
-  });
-
-  // Trainer: Update student module progress
-  app.patch("/api/trainer/student-progress/:studentId/module/:moduleId", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
-    try {
-      const { studentId, moduleId } = req.params;
-      const { isCompleted } = req.body;
-      const trainerId = req.currentUser.id;
-      
-      // Verify trainer has access to this student
-      const hasAccess = await storage.verifyTrainerStudentAccess(trainerId, studentId);
-      if (!hasAccess) {
-        return res.status(403).json({ message: "Access denied - student not in your courses" });
-      }
-      
-      const progressData = {
-        studentId,
-        moduleId,
-        isCompleted,
-        completedBy: trainerId,
-      };
-      
-      const updatedProgress = await storage.updateModuleProgress(progressData);
-      res.json(updatedProgress);
-    } catch (error) {
-      console.error("Error updating student progress:", error);
-      res.status(500).json({ message: "Failed to update progress" });
-    }
-  });
 
   // ============ ENROLLMENT REQUEST ROUTES ============
   
