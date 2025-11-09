@@ -14,7 +14,9 @@ import {
   Hash,
   User,
   Share,
-  Award
+  Award,
+  FolderOpen,
+  Medal
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
@@ -91,6 +93,7 @@ const menuItems = {
     { title: "Posts", url: "/posts", icon: Hash, testId: "link-sales-posts" },
     { title: "Students", url: "/students", icon: Users, testId: "link-sales-students" },
     { title: "Student Progress", url: "/student-progress", icon: Award, testId: "link-sales-student-progress" },
+    { title: "Certificates", url: "/certificates", icon: Medal, testId: "link-sales-certificates" },
     { title: "Enroll Student", url: "/enroll", icon: UserPlus, testId: "link-sales-enroll" },
     { title: "Enrollment Requests", url: "/enrollment-requests", icon: UserCheck, testId: "link-sales-enrollment-requests" },
     { title: "Courses", url: "/courses", icon: BookOpen, testId: "link-sales-courses" },
@@ -106,6 +109,7 @@ const menuItems = {
     { title: "Tasks", url: "/tasks", icon: ClipboardList, testId: "link-trainer-tasks" },
     { title: "Class Materials", url: "/materials", icon: FileText, testId: "link-trainer-materials" },
     { title: "Shared Files", url: "/shared-files", icon: Share, testId: "link-trainer-shared-files" },
+    { title: "Projects", url: "/projects", icon: FolderOpen, testId: "link-trainer-projects" },
     { title: "Queries", url: "/queries", icon: MessageSquare, testId: "link-trainer-queries" },
     { title: "Schedule", url: "/schedule", icon: Calendar, testId: "link-trainer-schedule" },
   ],
@@ -116,7 +120,9 @@ const menuItems = {
     { title: "My Courses", url: "/courses", icon: BookOpen, testId: "link-student-courses" },
     { title: "Progress", url: "/progress", icon: GraduationCap, testId: "link-student-progress" },
     { title: "Tasks", url: "/tasks", icon: ClipboardList, testId: "link-student-tasks" },
+    { title: "Projects", url: "/projects", icon: FolderOpen, testId: "link-student-projects" },
     { title: "Class Materials", url: "/materials", icon: FileText, testId: "link-student-materials" },
+    { title: "Certificates", url: "/certificates", icon: Medal, testId: "link-student-certificates" },
     { title: "Queries", url: "/queries", icon: MessageSquare, testId: "link-student-queries" },
     { title: "Schedule", url: "/schedule", icon: Calendar, testId: "link-student-schedule" },
   ],

@@ -3,7 +3,7 @@ import express from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated, hashPassword, verifyPassword } from "./auth";
-import { insertCourseSchema, insertModuleSchema, insertEnrollmentSchema, insertTaskSchema, insertScheduleSchema, insertQuerySchema, insertUserSchema, insertTrainerAssignmentSchema, insertClassMaterialSchema, insertAttendanceSchema, insertEnrollmentRequestSchema, insertPostSchema, insertPostCommentSchema, insertTrainerSharedFileSchema, classMaterials, posts, postComments, postLikes, trainerSharedFiles } from "@shared/schema";
+import { insertCourseSchema, insertModuleSchema, insertEnrollmentSchema, insertTaskSchema, insertScheduleSchema, insertQuerySchema, insertUserSchema, insertTrainerAssignmentSchema, insertClassMaterialSchema, insertAttendanceSchema, insertEnrollmentRequestSchema, insertPostSchema, insertPostCommentSchema, insertTrainerSharedFileSchema, classMaterials, posts, postComments, postLikes, trainerSharedFiles, projectAssignments, projectSubmissions, certificateRequests } from "@shared/schema";
 import { db } from "./db";
 import { courses, modules, enrollments, users, trainerAssignments, moduleProgress, tasks, schedules, queries, attendance, enrollmentRequests } from "@shared/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
@@ -131,19 +131,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     dest: 'uploads/',
     limits: { fileSize: 100 * 1024 * 1024 }, // 100MB limit
     fileFilter: (req, file, cb) => {
-      // Accept videos, documents, and images
+      // Accept videos, documents, images, archives, and engineering files
       const allowedTypes = [
         'video/mp4', 'video/mpeg', 'video/quicktime', 'video/x-msvideo', 'video/webm',
         'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-        'text/plain',
-        'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'
+        'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'text/plain', 'text/csv',
+        'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/tiff',
+        'application/zip', 'application/x-zip-compressed', 'application/x-rar-compressed', 'application/x-7z-compressed',
+        'application/x-tar', 'application/gzip',
+        'application/json', 'application/xml', 'text/xml',
+        'application/octet-stream'
       ];
       
       if (allowedTypes.includes(file.mimetype)) {
         cb(null, true);
       } else {
-        cb(new Error('Invalid file type. Only videos, documents, and images are allowed.'));
+        cb(new Error('Invalid file type. Engineering files, documents, images, videos, and archives are allowed.'));
       }
     }
   });
@@ -3508,6 +3513,387 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       console.error("Error updating profile:", error);
       res.status(500).json({ message: "Failed to update profile" });
+    }
+  });
+
+  // ============ PROJECT ASSIGNMENT ROUTES ============
+  
+  // Trainer: Create project assignment
+  app.post("/api/trainer/projects", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
+    try {
+      const trainerId = req.currentUser.id;
+      const assignmentData = {
+        ...req.body,
+        trainerId,
+      };
+      
+      const assignment = await storage.createProjectAssignment(assignmentData);
+      res.json(assignment);
+    } catch (error) {
+      console.error("Error creating project assignment:", error);
+      res.status(500).json({ message: "Failed to create project assignment" });
+    }
+  });
+
+  // Trainer: Get project assignments
+  app.get("/api/trainer/projects", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
+    try {
+      const trainerId = req.currentUser.id;
+      const assignments = await storage.getProjectAssignmentsByTrainer(trainerId);
+      
+      const assignmentsWithDetails = await Promise.all(
+        assignments.map(async (assignment) => {
+          const student = await storage.getUser(assignment.studentId);
+          const course = await storage.getCourse(assignment.courseId);
+          const submission = await storage.getProjectSubmission(assignment.id);
+          
+          return {
+            ...assignment,
+            studentName: student ? `${student.firstName || ''} ${student.lastName || ''}`.trim() || student.username : 'Unknown',
+            courseTitle: course?.title || 'Unknown Course',
+            submission,
+          };
+        })
+      );
+      
+      res.json(assignmentsWithDetails);
+    } catch (error) {
+      console.error("Error fetching project assignments:", error);
+      res.status(500).json({ message: "Failed to fetch project assignments" });
+    }
+  });
+
+  // Student: Get project assignments
+  app.get("/api/student/projects", isAuthenticated, requireRole(['student']), async (req: any, res) => {
+    try {
+      const studentId = req.currentUser.id;
+      const assignments = await storage.getProjectAssignmentsByStudent(studentId);
+      
+      const assignmentsWithDetails = await Promise.all(
+        assignments.map(async (assignment) => {
+          const trainer = await storage.getUser(assignment.trainerId);
+          const course = await storage.getCourse(assignment.courseId);
+          const submission = await storage.getProjectSubmission(assignment.id);
+          
+          return {
+            ...assignment,
+            trainerName: trainer ? `${trainer.firstName || ''} ${trainer.lastName || ''}`.trim() || trainer.username : 'Unknown',
+            courseTitle: course?.title || 'Unknown Course',
+            submission,
+          };
+        })
+      );
+      
+      res.json(assignmentsWithDetails);
+    } catch (error) {
+      console.error("Error fetching student project assignments:", error);
+      res.status(500).json({ message: "Failed to fetch project assignments" });
+    }
+  });
+
+  // Student: Submit project
+  app.post("/api/student/projects/:assignmentId/submit", isAuthenticated, requireRole(['student']), upload.single('file'), async (req: any, res) => {
+    try {
+      const { assignmentId } = req.params;
+      
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+      
+      const submissionData = {
+        assignmentId,
+        fileUrl: `/uploads/${req.file.filename}`,
+        fileName: req.file.originalname,
+        fileSize: req.file.size,
+      };
+      
+      const submission = await storage.submitProject(submissionData);
+      res.json(submission);
+    } catch (error) {
+      if (req.file) {
+        await fs.unlink(req.file.path).catch(() => {});
+      }
+      console.error("Error submitting project:", error);
+      res.status(500).json({ message: "Failed to submit project" });
+    }
+  });
+
+  // Trainer: Review project submission
+  app.patch("/api/trainer/projects/submissions/:submissionId/review", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
+    try {
+      const { submissionId } = req.params;
+      const { status, grade, comment } = req.body;
+      
+      const submission = await storage.reviewProjectSubmission(submissionId, status, grade, comment);
+      res.json(submission);
+    } catch (error) {
+      console.error("Error reviewing project submission:", error);
+      res.status(500).json({ message: "Failed to review project submission" });
+    }
+  });
+
+  // Download project submission
+  app.get("/api/projects/submissions/download/:submissionId", isAuthenticated, async (req: any, res) => {
+    try {
+      const { submissionId } = req.params;
+      const [submission] = await db.select().from(projectSubmissions).where(eq(projectSubmissions.id, submissionId));
+      
+      if (!submission) {
+        return res.status(404).json({ message: "Submission not found" });
+      }
+      
+      const filePath = path.join(process.cwd(), submission.fileUrl);
+      
+      try {
+        await fs.access(filePath);
+      } catch {
+        return res.status(404).json({ message: "File not found on server" });
+      }
+
+      res.download(filePath, submission.fileName);
+    } catch (error) {
+      console.error("Error downloading project submission:", error);
+      res.status(500).json({ message: "Failed to download submission" });
+    }
+  });
+
+  // ============ CERTIFICATE REQUEST ROUTES ============
+  
+  // Student: Check course completion status
+  app.get("/api/student/courses/:courseId/completion", isAuthenticated, requireRole(['student']), async (req: any, res) => {
+    try {
+      const studentId = req.currentUser.id;
+      const { courseId } = req.params;
+      
+      // Get all modules for the course
+      const courseModules = await db.select().from(modules).where(eq(modules.courseId, courseId)).orderBy(modules.order, modules.createdAt);
+      
+      // Get student's module progress
+      const studentModuleProgress = await db.select()
+        .from(moduleProgress)
+        .where(and(
+          eq(moduleProgress.studentId, studentId),
+          inArray(moduleProgress.moduleId, courseModules.map(m => m.id))
+        ));
+      
+      // Get project assignments for this course
+      const studentProjectAssignments = await db.select()
+        .from(projectAssignments)
+        .where(and(
+          eq(projectAssignments.studentId, studentId),
+          eq(projectAssignments.courseId, courseId)
+        ));
+      
+      // Get project submissions
+      const studentProjectSubmissions = await Promise.all(
+        studentProjectAssignments.map(async (assignment) => {
+          const [submission] = await db.select()
+            .from(projectSubmissions)
+            .where(eq(projectSubmissions.assignmentId, assignment.id));
+          return { assignment, submission };
+        })
+      );
+      
+      const completedModules = studentModuleProgress.filter(p => p.isCompleted).length;
+      const totalModules = courseModules.length;
+      const allModulesCompleted = completedModules === totalModules;
+      
+      const pendingProjects = studentProjectSubmissions.filter(p => !p.submission || p.submission.status === 'submitted' || p.submission.status === 'rejected');
+      const approvedFinalProject = studentProjectSubmissions.find(p => p.assignment.type === 'final' && p.submission?.status === 'approved');
+      
+      const incompleteItems = [];
+      
+      if (!allModulesCompleted) {
+        incompleteItems.push(`${totalModules - completedModules} module(s) not completed`);
+      }
+      
+      pendingProjects.forEach(p => {
+        if (!p.submission) {
+          incompleteItems.push(`${p.assignment.type === 'final' ? 'Final' : p.assignment.type === 'minor1' ? 'Minor 1' : 'Minor 2'} project not submitted`);
+        } else if (p.submission.status === 'submitted') {
+          incompleteItems.push(`${p.assignment.type === 'final' ? 'Final' : p.assignment.type === 'minor1' ? 'Minor 1' : 'Minor 2'} project under review`);
+        } else if (p.submission.status === 'rejected') {
+          incompleteItems.push(`${p.assignment.type === 'final' ? 'Final' : p.assignment.type === 'minor1' ? 'Minor 1' : 'Minor 2'} project needs revision`);
+        }
+      });
+      
+      const isEligible = allModulesCompleted && !!approvedFinalProject;
+      
+      res.json({
+        isEligible,
+        completedModules,
+        totalModules,
+        allModulesCompleted,
+        approvedFinalProject: !!approvedFinalProject,
+        incompleteItems
+      });
+    } catch (error) {
+      console.error("Error checking course completion:", error);
+      res.status(500).json({ message: "Failed to check course completion" });
+    }
+  });
+
+  // Student: Request certificate
+  app.post("/api/student/certificates", isAuthenticated, requireRole(['student']), async (req: any, res) => {
+    try {
+      const studentId = req.currentUser.id;
+      const { courseId } = req.body;
+      
+      // Check if course is completed (final project approved)
+      const isCompleted = await storage.checkCourseCompletion(studentId, courseId);
+      if (!isCompleted) {
+        return res.status(400).json({ message: "Course not completed. Final project must be approved first." });
+      }
+      
+      // Check if certificate already requested
+      const existingRequests = await db
+        .select()
+        .from(certificateRequests)
+        .where(and(
+          eq(certificateRequests.studentId, studentId),
+          eq(certificateRequests.courseId, courseId)
+        ));
+      
+      if (existingRequests.length > 0) {
+        return res.status(400).json({ message: "Certificate already requested for this course" });
+      }
+      
+      const request = await storage.createCertificateRequest({
+        studentId,
+        courseId,
+      });
+      
+      res.json(request);
+    } catch (error) {
+      console.error("Error requesting certificate:", error);
+      res.status(500).json({ message: "Failed to request certificate" });
+    }
+  });
+
+  // Student: Get certificate requests
+  app.get("/api/student/certificates", isAuthenticated, requireRole(['student']), async (req: any, res) => {
+    try {
+      const studentId = req.currentUser.id;
+      const requests = await storage.getCertificateRequestsByStudent(studentId);
+      
+      const requestsWithDetails = await Promise.all(
+        requests.map(async (request) => {
+          const course = await storage.getCourse(request.courseId);
+          const issuer = request.issuedBy ? await storage.getUser(request.issuedBy) : null;
+          
+          return {
+            ...request,
+            courseTitle: course?.title || 'Unknown Course',
+            issuerName: issuer ? `${issuer.firstName || ''} ${issuer.lastName || ''}`.trim() || issuer.username : null,
+          };
+        })
+      );
+      
+      res.json(requestsWithDetails);
+    } catch (error) {
+      console.error("Error fetching certificate requests:", error);
+      res.status(500).json({ message: "Failed to fetch certificate requests" });
+    }
+  });
+
+  // Sales: Get all certificate requests
+  app.get("/api/sales/certificates", isAuthenticated, requireRole(['sales_consultant']), async (req: any, res) => {
+    try {
+      const requests = await storage.getAllCertificateRequests();
+      
+      const requestsWithDetails = await Promise.all(
+        requests.map(async (request) => {
+          const student = await storage.getUser(request.studentId);
+          const course = await storage.getCourse(request.courseId);
+          const issuer = request.issuedBy ? await storage.getUser(request.issuedBy) : null;
+          
+          return {
+            ...request,
+            studentName: student ? `${student.firstName || ''} ${student.lastName || ''}`.trim() || student.username : 'Unknown',
+            studentEmail: student?.email,
+            courseTitle: course?.title || 'Unknown Course',
+            issuerName: issuer ? `${issuer.firstName || ''} ${issuer.lastName || ''}`.trim() || issuer.username : null,
+          };
+        })
+      );
+      
+      res.json(requestsWithDetails);
+    } catch (error) {
+      console.error("Error fetching certificate requests:", error);
+      res.status(500).json({ message: "Failed to fetch certificate requests" });
+    }
+  });
+
+  // Sales: Issue certificate
+  app.post("/api/sales/certificates/:requestId/issue", isAuthenticated, requireRole(['sales_consultant']), upload.single('certificate'), async (req: any, res) => {
+    try {
+      const { requestId } = req.params;
+      const salesId = req.currentUser.id;
+      
+      if (!req.file) {
+        return res.status(400).json({ message: "No certificate file uploaded" });
+      }
+      
+      const certificateUrl = `/uploads/${req.file.filename}`;
+      
+      const request = await storage.issueCertificate(requestId, salesId, certificateUrl);
+      res.json(request);
+    } catch (error) {
+      if (req.file) {
+        await fs.unlink(req.file.path).catch(() => {});
+      }
+      console.error("Error issuing certificate:", error);
+      res.status(500).json({ message: "Failed to issue certificate" });
+    }
+  });
+
+  // Sales: Reject certificate request
+  app.patch("/api/sales/certificates/:requestId/reject", isAuthenticated, requireRole(['sales_consultant']), async (req: any, res) => {
+    try {
+      const { requestId } = req.params;
+      
+      const request = await storage.rejectCertificateRequest(requestId);
+      res.json(request);
+    } catch (error) {
+      console.error("Error rejecting certificate request:", error);
+      res.status(500).json({ message: "Failed to reject certificate request" });
+    }
+  });
+
+  // Download certificate
+  app.get("/api/certificates/download/:requestId", isAuthenticated, async (req: any, res) => {
+    try {
+      const { requestId } = req.params;
+      const [request] = await db.select().from(certificateRequests).where(eq(certificateRequests.id, requestId));
+      
+      if (!request) {
+        return res.status(404).json({ message: "Certificate request not found" });
+      }
+      
+      if (!request.certificateUrl) {
+        return res.status(404).json({ message: "Certificate not issued yet" });
+      }
+      
+      // Check access - only student or sales can download
+      const userId = req.session?.userId;
+      const user = await storage.getUser(userId);
+      
+      if (user?.role !== 'sales_consultant' && request.studentId !== userId) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const filePath = path.join(process.cwd(), request.certificateUrl);
+      
+      try {
+        await fs.access(filePath);
+      } catch {
+        return res.status(404).json({ message: "Certificate file not found on server" });
+      }
+
+      res.download(filePath, `certificate-${request.id}.pdf`);
+    } catch (error) {
+      console.error("Error downloading certificate:", error);
+      res.status(500).json({ message: "Failed to download certificate" });
     }
   });
 

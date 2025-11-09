@@ -11,7 +11,7 @@ import { PasswordChangeDialog } from "@/components/PasswordChangeDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
-import { LayoutDashboard, Users, BookOpen, Calendar, User, FileText, Share } from "lucide-react";
+import { LayoutDashboard, Users, BookOpen, Calendar, User, FileText, Share, FolderOpen, Medal } from "lucide-react";
 
 const menuItems = {
   admin: [
@@ -27,24 +27,23 @@ const menuItems = {
     { title: "Students", url: "/students", icon: Users },
     { title: "Courses", url: "/courses", icon: BookOpen },
     { title: "Progress", url: "/student-progress", icon: FileText },
-    { title: "Schedules", url: "/schedules", icon: Calendar },
+    { title: "Certificates", url: "/certificates", icon: Medal },
     { title: "Profile", url: "/profile", icon: User },
   ],
   trainer: [
     { title: "Dashboard", url: "/", icon: LayoutDashboard },
     { title: "Courses", url: "/courses", icon: BookOpen },
     { title: "Students", url: "/students", icon: Users },
-    { title: "Progress", url: "/student-progress", icon: FileText },
+    { title: "Projects", url: "/projects", icon: FolderOpen },
     { title: "Shared Files", url: "/shared-files", icon: Share },
-    { title: "Schedule", url: "/schedule", icon: Calendar },
     { title: "Profile", url: "/profile", icon: User },
   ],
   student: [
     { title: "Dashboard", url: "/", icon: LayoutDashboard },
     { title: "Courses", url: "/courses", icon: BookOpen },
+    { title: "Projects", url: "/projects", icon: FolderOpen },
+    { title: "Certificates", url: "/certificates", icon: Medal },
     { title: "Materials", url: "/materials", icon: FileText },
-    { title: "Progress", url: "/progress", icon: Users },
-    { title: "Schedule", url: "/schedule", icon: Calendar },
     { title: "Profile", url: "/profile", icon: User },
   ],
 };
@@ -89,6 +88,7 @@ import TrainerClassMaterials from "@/pages/trainer/ClassMaterials";
 import TrainerAttendance from "@/pages/trainer/Attendance";
 import TrainerQueries from "@/pages/trainer/Queries";
 import TrainerSharedFiles from "@/pages/trainer/SharedFiles";
+import TrainerProjectAssignments from "@/pages/trainer/ProjectAssignments";
 
 // Student Pages
 import StudentDashboard from "@/pages/student/Dashboard";
@@ -100,6 +100,11 @@ import StudentSchedule from "@/pages/student/Schedule";
 import StudentCourseDetail from "@/pages/student/CourseDetail";
 import StudentMaterials from "@/pages/student/Materials";
 import StudentAttendance from "@/pages/student/Attendance";
+import StudentProjects from "@/pages/student/Projects";
+import StudentCertificates from "@/pages/student/Certificates";
+
+// Sales Pages (additional)
+import SalesCertificateManagement from "@/pages/sales/CertificateManagement";
 
 // Role-based routing components
 function AdminRoutes() {
@@ -139,6 +144,7 @@ function SalesRoutes() {
       <Route path="/enrollment-requests" component={AdminEnrollmentRequests} />
       <Route path="/students" component={SalesStudents} />
       <Route path="/student-progress" component={SharedStudentProgress} />
+      <Route path="/certificates" component={SalesCertificateManagement} />
       <Route path="/schedules/create" component={SalesCreateSchedule} />
       <Route path="/schedules/edit/:id" component={SalesCreateSchedule} />
       <Route path="/schedules" component={SalesSchedules} />
@@ -160,6 +166,7 @@ function TrainerRoutes() {
       <Route path="/tasks" component={TrainerTasks} />
       <Route path="/materials" component={TrainerClassMaterials} />
       <Route path="/shared-files" component={TrainerSharedFiles} />
+      <Route path="/projects" component={TrainerProjectAssignments} />
       <Route path="/queries" component={TrainerQueries} />
       <Route path="/attendance" component={TrainerAttendance} />
       <Route path="/student-progress" component={SharedStudentProgress} />
@@ -182,6 +189,8 @@ function StudentRoutes() {
       <Route path="/materials" component={StudentMaterials} />
       <Route path="/attendance" component={StudentAttendance} />
       <Route path="/queries" component={StudentQueries} />
+      <Route path="/projects" component={StudentProjects} />
+      <Route path="/certificates" component={StudentCertificates} />
       <Route path="/schedule" component={StudentSchedule} />
       <Route component={NotFound} />
     </Switch>

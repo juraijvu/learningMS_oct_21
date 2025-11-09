@@ -288,6 +288,55 @@ export const trainerFileAssignments = pgTable("trainer_file_assignments", {
   index("idx_trainer_file_assignment_unique").on(table.fileId, table.trainerId),
 ]);
 
+// Project assignments
+export const projectAssignments = pgTable("project_assignments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  courseId: varchar("course_id").notNull().references(() => courses.id, { onDelete: 'cascade' }),
+  studentId: varchar("student_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  trainerId: varchar("trainer_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  type: varchar("type", { enum: ['minor1', 'minor2', 'final'] }).notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description").notNull(),
+  attachmentUrl: varchar("attachment_url", { length: 500 }),
+  attachmentName: varchar("attachment_name", { length: 255 }),
+  assignedAt: timestamp("assigned_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_project_assignment_student").on(table.studentId),
+  index("idx_project_assignment_trainer").on(table.trainerId),
+]);
+
+// Project submissions
+export const projectSubmissions = pgTable("project_submissions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  assignmentId: varchar("assignment_id").notNull().references(() => projectAssignments.id, { onDelete: 'cascade' }),
+  fileUrl: varchar("file_url", { length: 500 }).notNull(),
+  fileName: varchar("file_name", { length: 255 }).notNull(),
+  fileSize: integer("file_size").notNull(),
+  status: varchar("status", { enum: ['submitted', 'approved', 'rejected'] }).notNull().default('submitted'),
+  grade: varchar("grade", { length: 10 }),
+  trainerComment: text("trainer_comment"),
+  submittedAt: timestamp("submitted_at").defaultNow().notNull(),
+  reviewedAt: timestamp("reviewed_at"),
+}, (table) => [
+  index("idx_project_submission_assignment").on(table.assignmentId),
+  index("idx_project_submission_status").on(table.status),
+]);
+
+// Certificate requests
+export const certificateRequests = pgTable("certificate_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  studentId: varchar("student_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  courseId: varchar("course_id").notNull().references(() => courses.id, { onDelete: 'cascade' }),
+  status: varchar("status", { enum: ['requested', 'issued', 'rejected'] }).notNull().default('requested'),
+  certificateUrl: varchar("certificate_url", { length: 500 }),
+  issuedBy: varchar("issued_by").references(() => users.id),
+  requestedAt: timestamp("requested_at").defaultNow().notNull(),
+  issuedAt: timestamp("issued_at"),
+}, (table) => [
+  index("idx_certificate_request_student").on(table.studentId),
+  index("idx_certificate_request_status").on(table.status),
+]);
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   enrollments: many(enrollments),
@@ -487,6 +536,44 @@ export const trainerFileAssignmentsRelations = relations(trainerFileAssignments,
   }),
 }));
 
+export const projectAssignmentsRelations = relations(projectAssignments, ({ one, many }) => ({
+  course: one(courses, {
+    fields: [projectAssignments.courseId],
+    references: [courses.id],
+  }),
+  student: one(users, {
+    fields: [projectAssignments.studentId],
+    references: [users.id],
+  }),
+  trainer: one(users, {
+    fields: [projectAssignments.trainerId],
+    references: [users.id],
+  }),
+  submissions: many(projectSubmissions),
+}));
+
+export const projectSubmissionsRelations = relations(projectSubmissions, ({ one }) => ({
+  assignment: one(projectAssignments, {
+    fields: [projectSubmissions.assignmentId],
+    references: [projectAssignments.id],
+  }),
+}));
+
+export const certificateRequestsRelations = relations(certificateRequests, ({ one }) => ({
+  student: one(users, {
+    fields: [certificateRequests.studentId],
+    references: [users.id],
+  }),
+  course: one(courses, {
+    fields: [certificateRequests.courseId],
+    references: [courses.id],
+  }),
+  issuer: one(users, {
+    fields: [certificateRequests.issuedBy],
+    references: [users.id],
+  }),
+}));
+
 // Type exports
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
@@ -547,6 +634,15 @@ export type TrainerSharedFile = typeof trainerSharedFiles.$inferSelect;
 
 export type InsertTrainerFileAssignment = typeof trainerFileAssignments.$inferInsert;
 export type TrainerFileAssignment = typeof trainerFileAssignments.$inferSelect;
+
+export type InsertProjectAssignment = typeof projectAssignments.$inferInsert;
+export type ProjectAssignment = typeof projectAssignments.$inferSelect;
+
+export type InsertProjectSubmission = typeof projectSubmissions.$inferInsert;
+export type ProjectSubmission = typeof projectSubmissions.$inferSelect;
+
+export type InsertCertificateRequest = typeof certificateRequests.$inferInsert;
+export type CertificateRequest = typeof certificateRequests.$inferSelect;
 
 // Insert schemas for validation
 export const insertUserSchema = createInsertSchema(users).omit({
@@ -652,4 +748,21 @@ export const insertTrainerSharedFileSchema = createInsertSchema(trainerSharedFil
 export const insertTrainerFileAssignmentSchema = createInsertSchema(trainerFileAssignments).omit({
   id: true,
   assignedAt: true,
+});
+
+export const insertProjectAssignmentSchema = createInsertSchema(projectAssignments).omit({
+  id: true,
+  assignedAt: true,
+});
+
+export const insertProjectSubmissionSchema = createInsertSchema(projectSubmissions).omit({
+  id: true,
+  submittedAt: true,
+  reviewedAt: true,
+});
+
+export const insertCertificateRequestSchema = createInsertSchema(certificateRequests).omit({
+  id: true,
+  requestedAt: true,
+  issuedAt: true,
 });

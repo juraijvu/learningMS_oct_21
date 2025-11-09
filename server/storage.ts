@@ -20,6 +20,9 @@ import {
   postLikes,
   trainerSharedFiles,
   trainerFileAssignments,
+  projectAssignments,
+  projectSubmissions,
+  certificateRequests,
   type User,
   type UpsertUser,
   type Course,
@@ -58,6 +61,12 @@ import {
   type InsertTrainerSharedFile,
   type TrainerFileAssignment,
   type InsertTrainerFileAssignment,
+  type ProjectAssignment,
+  type InsertProjectAssignment,
+  type ProjectSubmission,
+  type InsertProjectSubmission,
+  type CertificateRequest,
+  type InsertCertificateRequest,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
@@ -185,6 +194,22 @@ export interface IStorage {
   deleteExpiredTrainerFiles(): Promise<number>;
   assignFileToTrainer(fileId: string, trainerId: string): Promise<TrainerFileAssignment>;
   getFileAssignments(fileId: string): Promise<TrainerFileAssignment[]>;
+  
+  // Project operations
+  createProjectAssignment(assignment: InsertProjectAssignment): Promise<ProjectAssignment>;
+  getProjectAssignmentsByStudent(studentId: string): Promise<ProjectAssignment[]>;
+  getProjectAssignmentsByTrainer(trainerId: string): Promise<ProjectAssignment[]>;
+  submitProject(submission: InsertProjectSubmission): Promise<ProjectSubmission>;
+  getProjectSubmission(assignmentId: string): Promise<ProjectSubmission | undefined>;
+  reviewProjectSubmission(submissionId: string, status: 'approved' | 'rejected', grade?: string, comment?: string): Promise<ProjectSubmission>;
+  checkCourseCompletion(studentId: string, courseId: string): Promise<boolean>;
+  
+  // Certificate operations
+  createCertificateRequest(request: InsertCertificateRequest): Promise<CertificateRequest>;
+  getCertificateRequestsByStudent(studentId: string): Promise<CertificateRequest[]>;
+  getAllCertificateRequests(): Promise<CertificateRequest[]>;
+  issueCertificate(requestId: string, issuedBy: string, certificateUrl: string): Promise<CertificateRequest>;
+  rejectCertificateRequest(requestId: string): Promise<CertificateRequest>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1178,6 +1203,124 @@ export class DatabaseStorage implements IStorage {
       ));
     
     return (result[0]?.count || 0) > 0;
+  }
+
+  // Project operations
+  async createProjectAssignment(assignmentData: InsertProjectAssignment): Promise<ProjectAssignment> {
+    const [assignment] = await db
+      .insert(projectAssignments)
+      .values(assignmentData)
+      .returning();
+    return assignment;
+  }
+
+  async getProjectAssignmentsByStudent(studentId: string): Promise<ProjectAssignment[]> {
+    return await db
+      .select()
+      .from(projectAssignments)
+      .where(eq(projectAssignments.studentId, studentId))
+      .orderBy(desc(projectAssignments.assignedAt));
+  }
+
+  async getProjectAssignmentsByTrainer(trainerId: string): Promise<ProjectAssignment[]> {
+    return await db
+      .select()
+      .from(projectAssignments)
+      .where(eq(projectAssignments.trainerId, trainerId))
+      .orderBy(desc(projectAssignments.assignedAt));
+  }
+
+  async submitProject(submissionData: InsertProjectSubmission): Promise<ProjectSubmission> {
+    const [submission] = await db
+      .insert(projectSubmissions)
+      .values(submissionData)
+      .returning();
+    return submission;
+  }
+
+  async getProjectSubmission(assignmentId: string): Promise<ProjectSubmission | undefined> {
+    const [submission] = await db
+      .select()
+      .from(projectSubmissions)
+      .where(eq(projectSubmissions.assignmentId, assignmentId));
+    return submission;
+  }
+
+  async reviewProjectSubmission(submissionId: string, status: 'approved' | 'rejected', grade?: string, comment?: string): Promise<ProjectSubmission> {
+    const [submission] = await db
+      .update(projectSubmissions)
+      .set({
+        status,
+        grade,
+        trainerComment: comment,
+        reviewedAt: new Date(),
+      })
+      .where(eq(projectSubmissions.id, submissionId))
+      .returning();
+    return submission;
+  }
+
+  async checkCourseCompletion(studentId: string, courseId: string): Promise<boolean> {
+    // Check if final project is approved
+    const finalProject = await db
+      .select()
+      .from(projectAssignments)
+      .innerJoin(projectSubmissions, eq(projectAssignments.id, projectSubmissions.assignmentId))
+      .where(and(
+        eq(projectAssignments.studentId, studentId),
+        eq(projectAssignments.courseId, courseId),
+        eq(projectAssignments.type, 'final'),
+        eq(projectSubmissions.status, 'approved')
+      ));
+    
+    return finalProject.length > 0;
+  }
+
+  // Certificate operations
+  async createCertificateRequest(requestData: InsertCertificateRequest): Promise<CertificateRequest> {
+    const [request] = await db
+      .insert(certificateRequests)
+      .values(requestData)
+      .returning();
+    return request;
+  }
+
+  async getCertificateRequestsByStudent(studentId: string): Promise<CertificateRequest[]> {
+    return await db
+      .select()
+      .from(certificateRequests)
+      .where(eq(certificateRequests.studentId, studentId))
+      .orderBy(desc(certificateRequests.requestedAt));
+  }
+
+  async getAllCertificateRequests(): Promise<CertificateRequest[]> {
+    return await db
+      .select()
+      .from(certificateRequests)
+      .orderBy(desc(certificateRequests.requestedAt));
+  }
+
+  async issueCertificate(requestId: string, issuedBy: string, certificateUrl: string): Promise<CertificateRequest> {
+    const [request] = await db
+      .update(certificateRequests)
+      .set({
+        status: 'issued',
+        issuedBy,
+        certificateUrl,
+        issuedAt: new Date(),
+      })
+      .where(eq(certificateRequests.id, requestId))
+      .returning();
+    return request;
+  }
+
+  async rejectCertificateRequest(requestId: string): Promise<CertificateRequest> {
+    const [request] = await db
+      .update(certificateRequests)
+      .set({ status: 'rejected' })
+      .where(eq(certificateRequests.id, requestId))
+      .returning();
+    return request;
   }
 }
 
