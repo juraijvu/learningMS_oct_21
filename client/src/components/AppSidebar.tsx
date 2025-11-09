@@ -78,6 +78,8 @@ const menuItems = {
     { title: "Courses", url: "/courses", icon: BookOpen, testId: "link-admin-courses" },
     { title: "Manage Courses", url: "/manage-courses", icon: Settings, testId: "link-admin-manage-courses" },
     { title: "Enrollment Requests", url: "/enrollment-requests", icon: UserCheck, testId: "link-admin-enrollment-requests" },
+    { title: "Student Enrollments", url: "/student-enrollments", icon: Users, testId: "link-admin-student-enrollments" },
+    { title: "Trainer Assignments", url: "/trainer-assignments", icon: UserCheck, testId: "link-admin-trainer-assignments" },
     { title: "Activity Logs", url: "/activity-logs", icon: Activity, testId: "link-admin-activity-logs" },
     { title: "Schedules", url: "/schedules", icon: Calendar, testId: "link-admin-schedules" },
   ],

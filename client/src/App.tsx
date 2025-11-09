@@ -60,6 +60,8 @@ import AdminActivityLogs from "@/pages/admin/ActivityLogs";
 import AdminManageCourses from "@/pages/admin/ManageCourses";
 import AdminEnrollmentRequests from "@/pages/admin/EnrollmentRequests";
 import AdminPostApproval from "@/pages/admin/PostApproval";
+import AdminStudentEnrollments from "@/pages/admin/StudentEnrollments";
+import AdminTrainerAssignments from "@/pages/admin/TrainerAssignments";
 import Posts from "@/pages/Posts";
 import Profile from "@/pages/Profile";
 import SharedCourseModules from "@/pages/shared/CourseModules";
@@ -109,6 +111,8 @@ function AdminRoutes() {
       <Route path="/courses/:courseId/assign" component={AdminAssignTrainers} />
       <Route path="/manage-courses" component={AdminManageCourses} />
       <Route path="/enrollment-requests" component={AdminEnrollmentRequests} />
+      <Route path="/student-enrollments" component={AdminStudentEnrollments} />
+      <Route path="/trainer-assignments" component={AdminTrainerAssignments} />
       <Route path="/activity-logs" component={AdminActivityLogs} />
       <Route path="/schedules/create" component={AdminCreateSchedule} />
       <Route path="/schedules/edit/:id" component={AdminCreateSchedule} />

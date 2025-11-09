@@ -445,4 +445,36 @@ export class ActivityLogger {
       entityId: userId,
     });
   }
+
+  static async logStudentUnenrolled(
+    adminId: string,
+    studentId: string,
+    courseId: string,
+    courseTitle: string,
+    req?: Request
+  ): Promise<void> {
+    await this.log(adminId, 'student_unenrolled', {
+      req,
+      entityType: 'course',
+      entityId: courseId,
+      targetUserId: studentId,
+      details: { courseTitle },
+    });
+  }
+
+  static async logCourseUnassignedFromTrainer(
+    adminId: string,
+    trainerId: string,
+    courseId: string,
+    courseTitle: string,
+    req?: Request
+  ): Promise<void> {
+    await this.log(adminId, 'course_unassigned_from_trainer', {
+      req,
+      entityType: 'course',
+      entityId: courseId,
+      targetUserId: trainerId,
+      details: { courseTitle },
+    });
+  }
 }

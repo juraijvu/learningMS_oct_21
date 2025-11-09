@@ -2956,6 +2956,152 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ============ ADMIN ENROLLMENT & ASSIGNMENT MANAGEMENT ============
+  
+  // Admin: Get all student enrollments
+  app.get("/api/admin/student-enrollments", isAuthenticated, requireRole(['admin']), async (req, res) => {
+    try {
+      const allEnrollments = await db.select()
+        .from(enrollments)
+        .orderBy(enrollments.enrolledAt);
+      
+      const enrollmentsWithDetails = await Promise.all(
+        allEnrollments.map(async (enrollment) => {
+          const [student] = await db.select().from(users).where(eq(users.id, enrollment.studentId));
+          const [course] = await db.select().from(courses).where(eq(courses.id, enrollment.courseId));
+          
+          return {
+            ...enrollment,
+            student: student ? {
+              id: student.id,
+              username: student.username,
+              firstName: student.firstName,
+              lastName: student.lastName,
+              email: student.email,
+            } : null,
+            course: course ? {
+              id: course.id,
+              title: course.title,
+              category: course.category,
+            } : null,
+          };
+        })
+      );
+      
+      res.json(enrollmentsWithDetails);
+    } catch (error) {
+      console.error("Error fetching student enrollments:", error);
+      res.status(500).json({ message: "Failed to fetch student enrollments" });
+    }
+  });
+
+  // Admin: Delete student enrollment
+  app.delete("/api/admin/enrollments/:id", isAuthenticated, requireRole(['admin']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Get enrollment details before deletion for logging
+      const [enrollment] = await db.select().from(enrollments).where(eq(enrollments.id, id));
+      if (!enrollment) {
+        return res.status(404).json({ message: "Enrollment not found" });
+      }
+      
+      // Delete the enrollment
+      await db.delete(enrollments).where(eq(enrollments.id, id));
+      
+      // Log activity
+      const adminId = req.currentUser?.id || req.session?.userId;
+      if (adminId) {
+        const [student] = await db.select().from(users).where(eq(users.id, enrollment.studentId));
+        const [course] = await db.select().from(courses).where(eq(courses.id, enrollment.courseId));
+        await ActivityLogger.logStudentUnenrolled(
+          adminId,
+          enrollment.studentId,
+          enrollment.courseId,
+          course?.title || 'Unknown Course',
+          req
+        );
+      }
+      
+      res.json({ message: "Student enrollment removed successfully" });
+    } catch (error) {
+      console.error("Error deleting enrollment:", error);
+      res.status(500).json({ message: "Failed to delete enrollment" });
+    }
+  });
+
+  // Admin: Get all trainer assignments
+  app.get("/api/admin/trainer-assignments", isAuthenticated, requireRole(['admin']), async (req, res) => {
+    try {
+      const allAssignments = await db.select()
+        .from(trainerAssignments)
+        .orderBy(trainerAssignments.assignedAt);
+      
+      const assignmentsWithDetails = await Promise.all(
+        allAssignments.map(async (assignment) => {
+          const [trainer] = await db.select().from(users).where(eq(users.id, assignment.trainerId));
+          const [course] = await db.select().from(courses).where(eq(courses.id, assignment.courseId));
+          
+          return {
+            ...assignment,
+            trainer: trainer ? {
+              id: trainer.id,
+              username: trainer.username,
+              firstName: trainer.firstName,
+              lastName: trainer.lastName,
+              email: trainer.email,
+            } : null,
+            course: course ? {
+              id: course.id,
+              title: course.title,
+              category: course.category,
+            } : null,
+          };
+        })
+      );
+      
+      res.json(assignmentsWithDetails);
+    } catch (error) {
+      console.error("Error fetching trainer assignments:", error);
+      res.status(500).json({ message: "Failed to fetch trainer assignments" });
+    }
+  });
+
+  // Admin: Delete trainer assignment
+  app.delete("/api/admin/trainer-assignments/:id", isAuthenticated, requireRole(['admin']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Get assignment details before deletion for logging
+      const [assignment] = await db.select().from(trainerAssignments).where(eq(trainerAssignments.id, id));
+      if (!assignment) {
+        return res.status(404).json({ message: "Assignment not found" });
+      }
+      
+      // Delete the assignment
+      await db.delete(trainerAssignments).where(eq(trainerAssignments.id, id));
+      
+      // Log activity
+      const adminId = req.currentUser?.id || req.session?.userId;
+      if (adminId) {
+        const [trainer] = await db.select().from(users).where(eq(users.id, assignment.trainerId));
+        const [course] = await db.select().from(courses).where(eq(courses.id, assignment.courseId));
+        await ActivityLogger.logCourseUnassignedFromTrainer(
+          adminId,
+          assignment.trainerId,
+          assignment.courseId,
+          course?.title || 'Unknown Course',
+          req
+        );
+      }
+      
+      res.json({ message: "Trainer assignment removed successfully" });
+    } catch (error) {
+      console.error("Error deleting assignment:", error);
+      res.status(500).json({ message: "Failed to delete assignment" });
+    }
+  });
+
   // ============ EMAIL TEST ROUTE ============
   
   // Test email configuration (admin only)
