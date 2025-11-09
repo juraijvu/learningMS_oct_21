@@ -80,6 +80,7 @@ const menuItems = {
     { title: "Users", url: "/users", icon: Users, testId: "link-admin-users" },
     { title: "Courses", url: "/courses", icon: BookOpen, testId: "link-admin-courses" },
     { title: "Student Progress", url: "/student-progress", icon: Award, testId: "link-admin-student-progress" },
+    { title: "Certificates", url: "/certificates", icon: Medal, testId: "link-admin-certificates" },
     { title: "Manage Courses", url: "/manage-courses", icon: Settings, testId: "link-admin-manage-courses" },
     { title: "Enrollment Requests", url: "/enrollment-requests", icon: UserCheck, testId: "link-admin-enrollment-requests" },
     { title: "Student Enrollments", url: "/student-enrollments", icon: Users, testId: "link-admin-student-enrollments" },

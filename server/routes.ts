@@ -3796,7 +3796,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Sales: Get all certificate requests
+  // Sales: Get all certificate requests (legacy route)
   app.get("/api/sales/certificates", isAuthenticated, requireRole(['sales_consultant']), async (req: any, res) => {
     try {
       const requests = await storage.getAllCertificateRequests();
@@ -3824,11 +3824,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Sales: Issue certificate
+  // Admin/Sales: Get all certificate requests
+  app.get("/api/admin/certificates", isAuthenticated, requireRole(['admin', 'sales_consultant']), async (req: any, res) => {
+    try {
+      const requests = await storage.getAllCertificateRequests();
+      
+      const requestsWithDetails = await Promise.all(
+        requests.map(async (request) => {
+          const student = await storage.getUser(request.studentId);
+          const course = await storage.getCourse(request.courseId);
+          const issuer = request.issuedBy ? await storage.getUser(request.issuedBy) : null;
+          
+          return {
+            ...request,
+            studentName: student ? `${student.firstName || ''} ${student.lastName || ''}`.trim() || student.username : 'Unknown',
+            studentEmail: student?.email,
+            courseTitle: course?.title || 'Unknown Course',
+            issuerName: issuer ? `${issuer.firstName || ''} ${issuer.lastName || ''}`.trim() || issuer.username : null,
+          };
+        })
+      );
+      
+      res.json(requestsWithDetails);
+    } catch (error) {
+      console.error("Error fetching certificate requests:", error);
+      res.status(500).json({ message: "Failed to fetch certificate requests" });
+    }
+  });
+
+  // Sales: Issue certificate (legacy route)
   app.post("/api/sales/certificates/:requestId/issue", isAuthenticated, requireRole(['sales_consultant']), upload.single('certificate'), async (req: any, res) => {
     try {
       const { requestId } = req.params;
-      const salesId = req.currentUser.id;
+      const issuerId = req.currentUser.id;
       
       if (!req.file) {
         return res.status(400).json({ message: "No certificate file uploaded" });
@@ -3836,7 +3864,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const certificateUrl = `/uploads/${req.file.filename}`;
       
-      const request = await storage.issueCertificate(requestId, salesId, certificateUrl);
+      const request = await storage.issueCertificate(requestId, issuerId, certificateUrl);
       res.json(request);
     } catch (error) {
       if (req.file) {
@@ -3847,8 +3875,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Sales: Reject certificate request
+  // Admin/Sales: Issue certificate
+  app.post("/api/admin/certificates/:requestId/issue", isAuthenticated, requireRole(['admin', 'sales_consultant']), upload.single('certificate'), async (req: any, res) => {
+    try {
+      const { requestId } = req.params;
+      const issuerId = req.currentUser.id;
+      
+      if (!req.file) {
+        return res.status(400).json({ message: "No certificate file uploaded" });
+      }
+      
+      const certificateUrl = `/uploads/${req.file.filename}`;
+      
+      const request = await storage.issueCertificate(requestId, issuerId, certificateUrl);
+      res.json(request);
+    } catch (error) {
+      if (req.file) {
+        await fs.unlink(req.file.path).catch(() => {});
+      }
+      console.error("Error issuing certificate:", error);
+      res.status(500).json({ message: "Failed to issue certificate" });
+    }
+  });
+
+  // Sales: Reject certificate request (legacy route)
   app.patch("/api/sales/certificates/:requestId/reject", isAuthenticated, requireRole(['sales_consultant']), async (req: any, res) => {
+    try {
+      const { requestId } = req.params;
+      
+      const request = await storage.rejectCertificateRequest(requestId);
+      res.json(request);
+    } catch (error) {
+      console.error("Error rejecting certificate request:", error);
+      res.status(500).json({ message: "Failed to reject certificate request" });
+    }
+  });
+
+  // Admin/Sales: Reject certificate request
+  app.patch("/api/admin/certificates/:requestId/reject", isAuthenticated, requireRole(['admin', 'sales_consultant']), async (req: any, res) => {
     try {
       const { requestId } = req.params;
       
@@ -3878,7 +3942,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.session?.userId;
       const user = await storage.getUser(userId);
       
-      if (user?.role !== 'sales_consultant' && request.studentId !== userId) {
+      if (!['admin', 'sales_consultant'].includes(user?.role || '') && request.studentId !== userId) {
         return res.status(403).json({ message: "Access denied" });
       }
       

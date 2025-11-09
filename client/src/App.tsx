@@ -19,6 +19,7 @@ const menuItems = {
     { title: "Users", url: "/users", icon: Users },
     { title: "Courses", url: "/courses", icon: BookOpen },
     { title: "Progress", url: "/student-progress", icon: FileText },
+    { title: "Certificates", url: "/certificates", icon: Medal },
     { title: "Schedules", url: "/schedules", icon: Calendar },
     { title: "Profile", url: "/profile", icon: User },
   ],
@@ -106,6 +107,9 @@ import StudentCertificates from "@/pages/student/Certificates";
 // Sales Pages (additional)
 import SalesCertificateManagement from "@/pages/sales/CertificateManagement";
 
+// Admin Pages (additional)
+import AdminCertificateManagement from "@/pages/admin/CertificateManagement";
+
 // Role-based routing components
 function AdminRoutes() {
   return (
@@ -124,6 +128,7 @@ function AdminRoutes() {
       <Route path="/trainer-assignments" component={AdminTrainerAssignments} />
       <Route path="/activity-logs" component={AdminActivityLogs} />
       <Route path="/student-progress" component={SharedStudentProgress} />
+      <Route path="/certificates" component={AdminCertificateManagement} />
       <Route path="/schedules/create" component={AdminCreateSchedule} />
       <Route path="/schedules/edit/:id" component={AdminCreateSchedule} />
       <Route path="/schedules" component={AdminSchedules} />
