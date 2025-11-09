@@ -7,8 +7,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
 import { apiRequest } from '@/lib/queryClient';
-import { Plus, Download, Eye, CheckCircle, XCircle, Paperclip } from 'lucide-react';
+import { Plus, Download, Eye, CheckCircle, XCircle, Paperclip, FileText, Users, BookOpen, Calendar, Star, Upload, Clock, AlertTriangle } from 'lucide-react';
 
 interface ProjectAssignment {
   id: string;
@@ -214,50 +215,125 @@ export default function ProjectAssignments() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Project Assignments</h1>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Project Assignments</h1>
+          <p className="text-muted-foreground">Create and manage student project assignments</p>
+        </div>
+        <div className="text-right">
+          <p className="text-sm text-muted-foreground">Total Assignments</p>
+          <p className="text-2xl font-bold">{assignments.length}</p>
+        </div>
+      </div>
+
+      {/* Assignment Statistics */}
+      {assignments.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card className="bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2">
+                <FileText className="h-5 w-5 text-blue-600" />
+                <div>
+                  <p className="text-sm font-medium text-blue-900">Total</p>
+                  <p className="text-xl font-bold text-blue-900">{assignments.length}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-gradient-to-r from-orange-50 to-orange-100 border-orange-200">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2">
+                <Clock className="h-5 w-5 text-orange-600" />
+                <div>
+                  <p className="text-sm font-medium text-orange-900">Pending Review</p>
+                  <p className="text-xl font-bold text-orange-900">
+                    {assignments.filter(a => a.submission?.status === 'submitted').length}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-gradient-to-r from-green-50 to-green-100 border-green-200">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="h-5 w-5 text-green-600" />
+                <div>
+                  <p className="text-sm font-medium text-green-900">Approved</p>
+                  <p className="text-xl font-bold text-green-900">
+                    {assignments.filter(a => a.submission?.status === 'approved').length}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-gradient-to-r from-red-50 to-red-100 border-red-200">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2">
+                <XCircle className="h-5 w-5 text-red-600" />
+                <div>
+                  <p className="text-sm font-medium text-red-900">Needs Work</p>
+                  <p className="text-xl font-bold text-red-900">
+                    {assignments.filter(a => a.submission?.status === 'rejected').length}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      <div className="flex justify-end">
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Create Assignment
+            <Button size="lg" className="bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600">
+              <Plus className="h-5 w-5 mr-2" />
+              Create New Assignment
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Create Project Assignment</DialogTitle>
+              <DialogTitle className="text-xl">Create Project Assignment</DialogTitle>
+              <p className="text-muted-foreground">Set up a new project for your students</p>
             </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="course">Course</Label>
-                <Select value={newAssignment.courseId} onValueChange={(value) => setNewAssignment({ ...newAssignment, courseId: value })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select course" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {courses.map((course) => (
-                      <SelectItem key={course.id} value={course.id}>
-                        {course.title}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="student">Student</Label>
-                <Select value={newAssignment.studentId} onValueChange={(value) => setNewAssignment({ ...newAssignment, studentId: value })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select student" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {students.map((student) => (
-                      <SelectItem key={student.id} value={student.id}>
-                        {student.firstName && student.lastName 
-                          ? `${student.firstName} ${student.lastName}` 
-                          : student.username}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="course" className="text-base font-semibold">Course</Label>
+                  <Select value={newAssignment.courseId} onValueChange={(value) => setNewAssignment({ ...newAssignment, courseId: value })}>
+                    <SelectTrigger className="h-11">
+                      <div className="flex items-center gap-2">
+                        <BookOpen className="h-4 w-4 text-muted-foreground" />
+                        <SelectValue placeholder="Select course" />
+                      </div>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {courses.map((course) => (
+                        <SelectItem key={course.id} value={course.id}>
+                          {course.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="student" className="text-base font-semibold">Student</Label>
+                  <Select value={newAssignment.studentId} onValueChange={(value) => setNewAssignment({ ...newAssignment, studentId: value })}>
+                    <SelectTrigger className="h-11">
+                      <div className="flex items-center gap-2">
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                        <SelectValue placeholder="Select student" />
+                      </div>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {students.map((student) => (
+                        <SelectItem key={student.id} value={student.id}>
+                          {student.firstName && student.lastName 
+                            ? `${student.firstName} ${student.lastName}` 
+                            : student.username}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <div>
                 <Label htmlFor="type">Project Type</Label>
@@ -314,8 +390,23 @@ export default function ProjectAssignments() {
                 </div>
               )}
 
-              <Button onClick={handleCreateAssignment} disabled={uploading} className="w-full">
-                {uploading ? 'Creating...' : 'Create Assignment'}
+              <Button 
+                onClick={handleCreateAssignment} 
+                disabled={uploading || !newAssignment.courseId || !newAssignment.studentId || !newAssignment.title || !newAssignment.description} 
+                className="w-full bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600" 
+                size="lg"
+              >
+                {uploading ? (
+                  <div className="flex items-center gap-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Creating Assignment...
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Plus className="h-5 w-5" />
+                    Create Assignment
+                  </div>
+                )}
               </Button>
             </div>
           </DialogContent>
@@ -324,25 +415,47 @@ export default function ProjectAssignments() {
 
       <div className="grid gap-6">
         {assignments.map((assignment) => (
-          <Card key={assignment.id}>
-            <CardHeader>
+          <Card key={assignment.id} className="hover:shadow-lg transition-shadow duration-200">
+            <CardHeader className="pb-4">
               <div className="flex justify-between items-start">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    {assignment.title}
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-2">
+                    <CardTitle className="text-xl">{assignment.title}</CardTitle>
                     {getTypeBadge(assignment.type)}
-                  </CardTitle>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {assignment.courseTitle} • {assignment.studentName}
-                  </p>
+                  </div>
+                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-1">
+                      <BookOpen className="h-4 w-4" />
+                      <span>{assignment.courseTitle}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Users className="h-4 w-4" />
+                      <span>{assignment.studentName}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Calendar className="h-4 w-4" />
+                      <span>Assigned {new Date(assignment.assignedAt).toLocaleDateString()}</span>
+                    </div>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {assignment.submission && getStatusBadge(assignment.submission.status)}
+                  {assignment.submission ? getStatusBadge(assignment.submission.status) : (
+                    <Badge variant="outline" className="text-muted-foreground">
+                      <Clock className="h-3 w-3 mr-1" />
+                      Awaiting Submission
+                    </Badge>
+                  )}
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
-              <p className="text-sm mb-4">{assignment.description}</p>
+            <CardContent className="pt-0">
+              <div className="bg-muted/30 rounded-lg p-4 mb-4">
+                <h4 className="font-semibold mb-2 flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  Project Description
+                </h4>
+                <p className="text-sm leading-relaxed">{assignment.description}</p>
+              </div>
               
               {assignment.attachmentUrl && (
                 <div className="mb-4 p-3 bg-blue-50 rounded-lg">
@@ -413,13 +526,47 @@ export default function ProjectAssignments() {
                   )}
                 </div>
               ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <p>No submission yet</p>
+                <div className="text-center py-8">
+                  <Separator className="mb-6" />
+                  <div className="bg-gradient-to-r from-orange-50 to-yellow-50 rounded-lg p-6 border border-orange-200">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="p-3 bg-orange-100 rounded-full">
+                        <AlertTriangle className="h-8 w-8 text-orange-600" />
+                      </div>
+                      <div className="text-center">
+                        <h3 className="font-semibold text-orange-900 mb-1">Awaiting Submission</h3>
+                        <p className="text-sm text-orange-700">Student hasn't submitted their project yet</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
             </CardContent>
           </Card>
         ))}
+        
+        {assignments.length === 0 && (
+          <Card className="border-dashed border-2">
+            <CardContent className="text-center py-16">
+              <div className="flex flex-col items-center gap-4">
+                <div className="p-4 bg-muted rounded-full">
+                  <FileText className="h-12 w-12 text-muted-foreground" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-lg mb-2">No Project Assignments</h3>
+                  <p className="text-muted-foreground mb-4">Create your first project assignment to get started.</p>
+                  <Button 
+                    onClick={() => setIsCreateDialogOpen(true)}
+                    className="bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Assignment
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Review Dialog */}
