@@ -171,6 +171,11 @@ export interface IStorage {
   // Profile operations
   updateUserProfile(userId: string, updates: Partial<User>): Promise<User>;
   
+  // Student progress operations
+  getAllStudentProgress(): Promise<any[]>;
+  getTrainerStudentProgress(trainerId: string): Promise<any[]>;
+  verifyTrainerStudentAccess(trainerId: string, studentId: string): Promise<boolean>;
+  
   // Trainer shared files operations
   createTrainerSharedFile(file: InsertTrainerSharedFile): Promise<TrainerSharedFile>;
   getTrainerSharedFilesByUploader(uploaderId: string): Promise<TrainerSharedFile[]>;
@@ -993,6 +998,156 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(trainerFileAssignments)
       .where(eq(trainerFileAssignments.fileId, fileId));
+  }
+
+  // Student progress operations
+  async getAllStudentProgress(): Promise<any[]> {
+    const result = await db
+      .select({
+        studentId: users.id,
+        studentName: sql<string>`${users.firstName} || ' ' || ${users.lastName}`,
+        studentEmail: users.email,
+        courseId: courses.id,
+        courseTitle: courses.title,
+        moduleId: modules.id,
+        moduleTitle: modules.title,
+        moduleOrder: modules.order,
+        isCompleted: sql<boolean>`CASE WHEN ${moduleProgress.isCompleted} IS NULL THEN false ELSE ${moduleProgress.isCompleted} END`,
+        completedAt: moduleProgress.completedAt,
+      })
+      .from(enrollments)
+      .innerJoin(users, eq(enrollments.studentId, users.id))
+      .innerJoin(courses, eq(enrollments.courseId, courses.id))
+      .innerJoin(modules, eq(courses.id, modules.courseId))
+      .leftJoin(moduleProgress, and(
+        eq(moduleProgress.studentId, users.id),
+        eq(moduleProgress.moduleId, modules.id)
+      ))
+      .orderBy(users.firstName, courses.title, modules.order);
+
+    // Group by student and course
+    const grouped = result.reduce((acc, row) => {
+      const key = `${row.studentId}-${row.courseId}`;
+      if (!acc[key]) {
+        acc[key] = {
+          studentId: row.studentId,
+          studentName: row.studentName,
+          studentEmail: row.studentEmail,
+          courseId: row.courseId,
+          courseTitle: row.courseTitle,
+          modules: [],
+          totalModules: 0,
+          completedModules: 0,
+        };
+      }
+      
+      acc[key].modules.push({
+        id: row.moduleId,
+        title: row.moduleTitle,
+        order: row.moduleOrder,
+        isCompleted: row.isCompleted,
+        completedAt: row.completedAt,
+      });
+      
+      acc[key].totalModules++;
+      if (row.isCompleted) {
+        acc[key].completedModules++;
+      }
+      
+      return acc;
+    }, {} as Record<string, any>);
+
+    return Object.values(grouped).map(item => ({
+      ...item,
+      progressPercentage: item.totalModules > 0 ? Math.round((item.completedModules / item.totalModules) * 100) : 0,
+    }));
+  }
+
+  async getTrainerStudentProgress(trainerId: string): Promise<any[]> {
+    // Get courses assigned to trainer
+    const trainerCourses = await db
+      .select({ courseId: trainerAssignments.courseId })
+      .from(trainerAssignments)
+      .where(eq(trainerAssignments.trainerId, trainerId));
+    
+    if (trainerCourses.length === 0) return [];
+    
+    const courseIds = trainerCourses.map(tc => tc.courseId);
+    
+    const result = await db
+      .select({
+        studentId: users.id,
+        studentName: sql<string>`${users.firstName} || ' ' || ${users.lastName}`,
+        studentEmail: users.email,
+        courseId: courses.id,
+        courseTitle: courses.title,
+        moduleId: modules.id,
+        moduleTitle: modules.title,
+        moduleOrder: modules.order,
+        isCompleted: sql<boolean>`CASE WHEN ${moduleProgress.isCompleted} IS NULL THEN false ELSE ${moduleProgress.isCompleted} END`,
+        completedAt: moduleProgress.completedAt,
+      })
+      .from(enrollments)
+      .innerJoin(users, eq(enrollments.studentId, users.id))
+      .innerJoin(courses, eq(enrollments.courseId, courses.id))
+      .innerJoin(modules, eq(courses.id, modules.courseId))
+      .leftJoin(moduleProgress, and(
+        eq(moduleProgress.studentId, users.id),
+        eq(moduleProgress.moduleId, modules.id)
+      ))
+      .where(inArray(courses.id, courseIds))
+      .orderBy(users.firstName, courses.title, modules.order);
+
+    // Group by student and course
+    const grouped = result.reduce((acc, row) => {
+      const key = `${row.studentId}-${row.courseId}`;
+      if (!acc[key]) {
+        acc[key] = {
+          studentId: row.studentId,
+          studentName: row.studentName,
+          studentEmail: row.studentEmail,
+          courseId: row.courseId,
+          courseTitle: row.courseTitle,
+          modules: [],
+          totalModules: 0,
+          completedModules: 0,
+        };
+      }
+      
+      acc[key].modules.push({
+        id: row.moduleId,
+        title: row.moduleTitle,
+        order: row.moduleOrder,
+        isCompleted: row.isCompleted,
+        completedAt: row.completedAt,
+      });
+      
+      acc[key].totalModules++;
+      if (row.isCompleted) {
+        acc[key].completedModules++;
+      }
+      
+      return acc;
+    }, {} as Record<string, any>);
+
+    return Object.values(grouped).map(item => ({
+      ...item,
+      progressPercentage: item.totalModules > 0 ? Math.round((item.completedModules / item.totalModules) * 100) : 0,
+    }));
+  }
+
+  async verifyTrainerStudentAccess(trainerId: string, studentId: string): Promise<boolean> {
+    // Check if trainer has any courses with this student
+    const result = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(trainerAssignments)
+      .innerJoin(enrollments, eq(trainerAssignments.courseId, enrollments.courseId))
+      .where(and(
+        eq(trainerAssignments.trainerId, trainerId),
+        eq(enrollments.studentId, studentId)
+      ));
+    
+    return (result[0]?.count || 0) > 0;
   }
 }
 

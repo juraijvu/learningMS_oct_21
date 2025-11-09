@@ -18,6 +18,7 @@ const menuItems = {
     { title: "Dashboard", url: "/", icon: LayoutDashboard },
     { title: "Users", url: "/users", icon: Users },
     { title: "Courses", url: "/courses", icon: BookOpen },
+    { title: "Progress", url: "/student-progress", icon: FileText },
     { title: "Schedules", url: "/schedules", icon: Calendar },
     { title: "Profile", url: "/profile", icon: User },
   ],
@@ -25,6 +26,7 @@ const menuItems = {
     { title: "Dashboard", url: "/", icon: LayoutDashboard },
     { title: "Students", url: "/students", icon: Users },
     { title: "Courses", url: "/courses", icon: BookOpen },
+    { title: "Progress", url: "/student-progress", icon: FileText },
     { title: "Schedules", url: "/schedules", icon: Calendar },
     { title: "Profile", url: "/profile", icon: User },
   ],
@@ -32,6 +34,7 @@ const menuItems = {
     { title: "Dashboard", url: "/", icon: LayoutDashboard },
     { title: "Courses", url: "/courses", icon: BookOpen },
     { title: "Students", url: "/students", icon: Users },
+    { title: "Progress", url: "/student-progress", icon: FileText },
     { title: "Shared Files", url: "/shared-files", icon: Share },
     { title: "Schedule", url: "/schedule", icon: Calendar },
     { title: "Profile", url: "/profile", icon: User },
@@ -65,6 +68,7 @@ import AdminTrainerAssignments from "@/pages/admin/TrainerAssignments";
 import Posts from "@/pages/Posts";
 import Profile from "@/pages/Profile";
 import SharedCourseModules from "@/pages/shared/CourseModules";
+import SharedStudentProgress from "@/pages/shared/StudentProgress";
 
 // Sales Pages
 import SalesDashboard from "@/pages/sales/Dashboard";
@@ -114,6 +118,7 @@ function AdminRoutes() {
       <Route path="/student-enrollments" component={AdminStudentEnrollments} />
       <Route path="/trainer-assignments" component={AdminTrainerAssignments} />
       <Route path="/activity-logs" component={AdminActivityLogs} />
+      <Route path="/student-progress" component={SharedStudentProgress} />
       <Route path="/schedules/create" component={AdminCreateSchedule} />
       <Route path="/schedules/edit/:id" component={AdminCreateSchedule} />
       <Route path="/schedules" component={AdminSchedules} />
@@ -133,6 +138,7 @@ function SalesRoutes() {
       <Route path="/enroll" component={SalesEnrollStudent} />
       <Route path="/enrollment-requests" component={AdminEnrollmentRequests} />
       <Route path="/students" component={SalesStudents} />
+      <Route path="/student-progress" component={SharedStudentProgress} />
       <Route path="/schedules/create" component={SalesCreateSchedule} />
       <Route path="/schedules/edit/:id" component={SalesCreateSchedule} />
       <Route path="/schedules" component={SalesSchedules} />
@@ -156,6 +162,7 @@ function TrainerRoutes() {
       <Route path="/shared-files" component={TrainerSharedFiles} />
       <Route path="/queries" component={TrainerQueries} />
       <Route path="/attendance" component={TrainerAttendance} />
+      <Route path="/student-progress" component={SharedStudentProgress} />
       <Route path="/schedule" component={TrainerSchedules} />
       <Route component={NotFound} />
     </Switch>

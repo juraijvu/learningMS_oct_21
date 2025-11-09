@@ -13,7 +13,8 @@ import {
   UserCheck,
   Hash,
   User,
-  Share
+  Share,
+  Award
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
@@ -76,6 +77,7 @@ const menuItems = {
     { title: "Post Approval", url: "/post-approval", icon: UserCheck, testId: "link-admin-post-approval" },
     { title: "Users", url: "/users", icon: Users, testId: "link-admin-users" },
     { title: "Courses", url: "/courses", icon: BookOpen, testId: "link-admin-courses" },
+    { title: "Student Progress", url: "/student-progress", icon: Award, testId: "link-admin-student-progress" },
     { title: "Manage Courses", url: "/manage-courses", icon: Settings, testId: "link-admin-manage-courses" },
     { title: "Enrollment Requests", url: "/enrollment-requests", icon: UserCheck, testId: "link-admin-enrollment-requests" },
     { title: "Student Enrollments", url: "/student-enrollments", icon: Users, testId: "link-admin-student-enrollments" },
@@ -88,6 +90,7 @@ const menuItems = {
     { title: "Profile", url: "/profile", icon: User, testId: "link-sales-profile" },
     { title: "Posts", url: "/posts", icon: Hash, testId: "link-sales-posts" },
     { title: "Students", url: "/students", icon: Users, testId: "link-sales-students" },
+    { title: "Student Progress", url: "/student-progress", icon: Award, testId: "link-sales-student-progress" },
     { title: "Enroll Student", url: "/enroll", icon: UserPlus, testId: "link-sales-enroll" },
     { title: "Enrollment Requests", url: "/enrollment-requests", icon: UserCheck, testId: "link-sales-enrollment-requests" },
     { title: "Courses", url: "/courses", icon: BookOpen, testId: "link-sales-courses" },
@@ -99,6 +102,7 @@ const menuItems = {
     { title: "Posts", url: "/posts", icon: Hash, testId: "link-trainer-posts" },
     { title: "My Courses", url: "/courses", icon: BookOpen, testId: "link-trainer-courses" },
     { title: "Students", url: "/students", icon: Users, testId: "link-trainer-students" },
+    { title: "Student Progress", url: "/student-progress", icon: Award, testId: "link-trainer-student-progress" },
     { title: "Tasks", url: "/tasks", icon: ClipboardList, testId: "link-trainer-tasks" },
     { title: "Class Materials", url: "/materials", icon: FileText, testId: "link-trainer-materials" },
     { title: "Shared Files", url: "/shared-files", icon: Share, testId: "link-trainer-shared-files" },

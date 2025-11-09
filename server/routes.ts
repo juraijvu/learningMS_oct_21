@@ -2480,6 +2480,112 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin: Get student progress
+  app.get("/api/admin/student-progress", isAuthenticated, requireRole(['admin']), async (req: any, res) => {
+    try {
+      const progressData = await storage.getAllStudentProgress();
+      res.json(progressData);
+    } catch (error) {
+      console.error("Error fetching student progress:", error);
+      res.status(500).json({ message: "Failed to fetch student progress" });
+    }
+  });
+
+  // Sales: Get student progress
+  app.get("/api/sales/student-progress", isAuthenticated, requireRole(['sales_consultant']), async (req: any, res) => {
+    try {
+      const progressData = await storage.getAllStudentProgress();
+      res.json(progressData);
+    } catch (error) {
+      console.error("Error fetching student progress:", error);
+      res.status(500).json({ message: "Failed to fetch student progress" });
+    }
+  });
+
+  // Trainer: Get student progress
+  app.get("/api/trainer/student-progress", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
+    try {
+      const trainerId = req.currentUser.id;
+      const progressData = await storage.getTrainerStudentProgress(trainerId);
+      res.json(progressData);
+    } catch (error) {
+      console.error("Error fetching trainer student progress:", error);
+      res.status(500).json({ message: "Failed to fetch student progress" });
+    }
+  });
+
+  // Admin: Update student module progress
+  app.patch("/api/admin/student-progress/:studentId/module/:moduleId", isAuthenticated, requireRole(['admin']), async (req: any, res) => {
+    try {
+      const { studentId, moduleId } = req.params;
+      const { isCompleted } = req.body;
+      const adminId = req.currentUser.id;
+      
+      const progressData = {
+        studentId,
+        moduleId,
+        isCompleted,
+        completedBy: adminId,
+      };
+      
+      const updatedProgress = await storage.updateModuleProgress(progressData);
+      res.json(updatedProgress);
+    } catch (error) {
+      console.error("Error updating student progress:", error);
+      res.status(500).json({ message: "Failed to update progress" });
+    }
+  });
+
+  // Sales: Update student module progress
+  app.patch("/api/sales/student-progress/:studentId/module/:moduleId", isAuthenticated, requireRole(['sales_consultant']), async (req: any, res) => {
+    try {
+      const { studentId, moduleId } = req.params;
+      const { isCompleted } = req.body;
+      const salesId = req.currentUser.id;
+      
+      const progressData = {
+        studentId,
+        moduleId,
+        isCompleted,
+        completedBy: salesId,
+      };
+      
+      const updatedProgress = await storage.updateModuleProgress(progressData);
+      res.json(updatedProgress);
+    } catch (error) {
+      console.error("Error updating student progress:", error);
+      res.status(500).json({ message: "Failed to update progress" });
+    }
+  });
+
+  // Trainer: Update student module progress
+  app.patch("/api/trainer/student-progress/:studentId/module/:moduleId", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
+    try {
+      const { studentId, moduleId } = req.params;
+      const { isCompleted } = req.body;
+      const trainerId = req.currentUser.id;
+      
+      // Verify trainer has access to this student
+      const hasAccess = await storage.verifyTrainerStudentAccess(trainerId, studentId);
+      if (!hasAccess) {
+        return res.status(403).json({ message: "Access denied - student not in your courses" });
+      }
+      
+      const progressData = {
+        studentId,
+        moduleId,
+        isCompleted,
+        completedBy: trainerId,
+      };
+      
+      const updatedProgress = await storage.updateModuleProgress(progressData);
+      res.json(updatedProgress);
+    } catch (error) {
+      console.error("Error updating student progress:", error);
+      res.status(500).json({ message: "Failed to update progress" });
+    }
+  });
+
   // ============ ENROLLMENT REQUEST ROUTES ============
   
   // Student: Create enrollment request
