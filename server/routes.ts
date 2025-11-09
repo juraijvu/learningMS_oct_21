@@ -2496,6 +2496,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin: Get students overview
+  app.get("/api/admin/students-overview", isAuthenticated, requireRole(['admin']), async (req: any, res) => {
+    try {
+      const progressData = await storage.getAllStudentProgress();
+      
+      const studentsMap = new Map();
+      progressData.forEach(progress => {
+        if (!studentsMap.has(progress.studentId)) {
+          studentsMap.set(progress.studentId, {
+            studentId: progress.studentId,
+            studentName: progress.studentName,
+            studentEmail: progress.studentEmail,
+            studentPhone: progress.studentPhone,
+            studentProfileImage: progress.studentProfileImage,
+            courses: []
+          });
+        }
+        studentsMap.get(progress.studentId).courses.push({
+          courseId: progress.courseId,
+          courseTitle: progress.courseTitle,
+          totalModules: progress.totalModules,
+          completedModules: progress.completedModules,
+          progressPercentage: progress.progressPercentage
+        });
+      });
+      
+      const studentsOverview = Array.from(studentsMap.values()).map(student => ({
+        ...student,
+        overallProgress: student.courses.length > 0 
+          ? Math.round(student.courses.reduce((sum, course) => sum + course.progressPercentage, 0) / student.courses.length)
+          : 0
+      }));
+      
+      res.json(studentsOverview);
+    } catch (error) {
+      console.error("Error fetching students overview:", error);
+      res.status(500).json({ message: "Failed to fetch students overview" });
+    }
+  });
+
+  // Admin: Get individual student progress
+  app.get("/api/admin/student-progress/:studentId", isAuthenticated, requireRole(['admin']), async (req: any, res) => {
+    try {
+      const { studentId } = req.params;
+      const progressData = await storage.getAllStudentProgress();
+      const studentProgress = progressData.filter(p => p.studentId === studentId);
+      
+      if (studentProgress.length === 0) {
+        return res.status(404).json({ message: "Student not found" });
+      }
+      
+      const student = {
+        studentId: studentProgress[0].studentId,
+        studentName: studentProgress[0].studentName,
+        studentEmail: studentProgress[0].studentEmail,
+        studentPhone: studentProgress[0].studentPhone,
+        studentProfileImage: studentProgress[0].studentProfileImage,
+        courses: studentProgress.map(p => ({
+          courseId: p.courseId,
+          courseTitle: p.courseTitle,
+          totalModules: p.totalModules,
+          completedModules: p.completedModules,
+          progressPercentage: p.progressPercentage,
+          modules: p.modules
+        }))
+      };
+      
+      res.json(student);
+    } catch (error) {
+      console.error("Error fetching student progress:", error);
+      res.status(500).json({ message: "Failed to fetch student progress" });
+    }
+  });
+
   // Admin: Fix module order values for old courses
   app.post("/api/admin/fix-module-orders", isAuthenticated, requireRole(['admin']), async (req: any, res) => {
     try {
@@ -2552,6 +2626,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Sales: Get students overview
+  app.get("/api/sales/students-overview", isAuthenticated, requireRole(['sales_consultant']), async (req: any, res) => {
+    try {
+      const progressData = await storage.getAllStudentProgress();
+      
+      const studentsMap = new Map();
+      progressData.forEach(progress => {
+        if (!studentsMap.has(progress.studentId)) {
+          studentsMap.set(progress.studentId, {
+            studentId: progress.studentId,
+            studentName: progress.studentName,
+            studentEmail: progress.studentEmail,
+            studentPhone: progress.studentPhone,
+            studentProfileImage: progress.studentProfileImage,
+            courses: []
+          });
+        }
+        studentsMap.get(progress.studentId).courses.push({
+          courseId: progress.courseId,
+          courseTitle: progress.courseTitle,
+          totalModules: progress.totalModules,
+          completedModules: progress.completedModules,
+          progressPercentage: progress.progressPercentage
+        });
+      });
+      
+      const studentsOverview = Array.from(studentsMap.values()).map(student => ({
+        ...student,
+        overallProgress: student.courses.length > 0 
+          ? Math.round(student.courses.reduce((sum, course) => sum + course.progressPercentage, 0) / student.courses.length)
+          : 0
+      }));
+      
+      res.json(studentsOverview);
+    } catch (error) {
+      console.error("Error fetching students overview:", error);
+      res.status(500).json({ message: "Failed to fetch students overview" });
+    }
+  });
+
+  // Sales: Get individual student progress
+  app.get("/api/sales/student-progress/:studentId", isAuthenticated, requireRole(['sales_consultant']), async (req: any, res) => {
+    try {
+      const { studentId } = req.params;
+      const progressData = await storage.getAllStudentProgress();
+      const studentProgress = progressData.filter(p => p.studentId === studentId);
+      
+      if (studentProgress.length === 0) {
+        return res.status(404).json({ message: "Student not found" });
+      }
+      
+      const student = {
+        studentId: studentProgress[0].studentId,
+        studentName: studentProgress[0].studentName,
+        studentEmail: studentProgress[0].studentEmail,
+        studentPhone: studentProgress[0].studentPhone,
+        studentProfileImage: studentProgress[0].studentProfileImage,
+        courses: studentProgress.map(p => ({
+          courseId: p.courseId,
+          courseTitle: p.courseTitle,
+          totalModules: p.totalModules,
+          completedModules: p.completedModules,
+          progressPercentage: p.progressPercentage,
+          modules: p.modules
+        }))
+      };
+      
+      res.json(student);
+    } catch (error) {
+      console.error("Error fetching student progress:", error);
+      res.status(500).json({ message: "Failed to fetch student progress" });
+    }
+  });
+
   // Trainer: Get student progress
   app.get("/api/trainer/student-progress", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
     try {
@@ -2560,6 +2708,89 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(progressData);
     } catch (error) {
       console.error("Error fetching trainer student progress:", error);
+      res.status(500).json({ message: "Failed to fetch student progress" });
+    }
+  });
+
+  // Trainer: Get students overview
+  app.get("/api/trainer/students-overview", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
+    try {
+      const trainerId = req.currentUser.id;
+      const progressData = await storage.getTrainerStudentProgress(trainerId);
+      
+      const studentsMap = new Map();
+      progressData.forEach(progress => {
+        if (!studentsMap.has(progress.studentId)) {
+          studentsMap.set(progress.studentId, {
+            studentId: progress.studentId,
+            studentName: progress.studentName,
+            studentEmail: progress.studentEmail,
+            studentPhone: progress.studentPhone,
+            studentProfileImage: progress.studentProfileImage,
+            courses: []
+          });
+        }
+        studentsMap.get(progress.studentId).courses.push({
+          courseId: progress.courseId,
+          courseTitle: progress.courseTitle,
+          totalModules: progress.totalModules,
+          completedModules: progress.completedModules,
+          progressPercentage: progress.progressPercentage
+        });
+      });
+      
+      const studentsOverview = Array.from(studentsMap.values()).map(student => ({
+        ...student,
+        overallProgress: student.courses.length > 0 
+          ? Math.round(student.courses.reduce((sum, course) => sum + course.progressPercentage, 0) / student.courses.length)
+          : 0
+      }));
+      
+      res.json(studentsOverview);
+    } catch (error) {
+      console.error("Error fetching students overview:", error);
+      res.status(500).json({ message: "Failed to fetch students overview" });
+    }
+  });
+
+  // Trainer: Get individual student progress
+  app.get("/api/trainer/student-progress/:studentId", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
+    try {
+      const trainerId = req.currentUser.id;
+      const { studentId } = req.params;
+      
+      // Verify trainer has access to this student
+      const hasAccess = await storage.verifyTrainerStudentAccess(trainerId, studentId);
+      if (!hasAccess) {
+        return res.status(403).json({ message: "Access denied - Student not in your courses" });
+      }
+      
+      const progressData = await storage.getTrainerStudentProgress(trainerId);
+      const studentProgress = progressData.filter(p => p.studentId === studentId);
+      
+      if (studentProgress.length === 0) {
+        return res.status(404).json({ message: "Student not found" });
+      }
+      
+      const student = {
+        studentId: studentProgress[0].studentId,
+        studentName: studentProgress[0].studentName,
+        studentEmail: studentProgress[0].studentEmail,
+        studentPhone: studentProgress[0].studentPhone,
+        studentProfileImage: studentProgress[0].studentProfileImage,
+        courses: studentProgress.map(p => ({
+          courseId: p.courseId,
+          courseTitle: p.courseTitle,
+          totalModules: p.totalModules,
+          completedModules: p.completedModules,
+          progressPercentage: p.progressPercentage,
+          modules: p.modules
+        }))
+      };
+      
+      res.json(student);
+    } catch (error) {
+      console.error("Error fetching student progress:", error);
       res.status(500).json({ message: "Failed to fetch student progress" });
     }
   });

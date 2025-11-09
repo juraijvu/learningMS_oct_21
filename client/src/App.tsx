@@ -69,6 +69,8 @@ import Posts from "@/pages/Posts";
 import Profile from "@/pages/Profile";
 import SharedCourseModules from "@/pages/shared/CourseModules";
 import SharedStudentProgress from "@/pages/shared/StudentProgress";
+import SharedStudentProgressOverview from "@/pages/shared/StudentProgressOverview";
+import SharedStudentProgressDetail from "@/pages/shared/StudentProgressDetail";
 
 // Sales Pages
 import SalesDashboard from "@/pages/sales/Dashboard";
@@ -127,7 +129,8 @@ function AdminRoutes() {
       <Route path="/student-enrollments" component={AdminStudentEnrollments} />
       <Route path="/trainer-assignments" component={AdminTrainerAssignments} />
       <Route path="/activity-logs" component={AdminActivityLogs} />
-      <Route path="/student-progress" component={SharedStudentProgress} />
+      <Route path="/student-progress" component={SharedStudentProgressOverview} />
+      <Route path="/student-progress/:studentId" component={SharedStudentProgressDetail} />
       <Route path="/certificates" component={AdminCertificateManagement} />
       <Route path="/schedules/create" component={AdminCreateSchedule} />
       <Route path="/schedules/edit/:id" component={AdminCreateSchedule} />
@@ -148,7 +151,8 @@ function SalesRoutes() {
       <Route path="/enroll" component={SalesEnrollStudent} />
       <Route path="/enrollment-requests" component={AdminEnrollmentRequests} />
       <Route path="/students" component={SalesStudents} />
-      <Route path="/student-progress" component={SharedStudentProgress} />
+      <Route path="/student-progress" component={SharedStudentProgressOverview} />
+      <Route path="/student-progress/:studentId" component={SharedStudentProgressDetail} />
       <Route path="/certificates" component={SalesCertificateManagement} />
       <Route path="/schedules/create" component={SalesCreateSchedule} />
       <Route path="/schedules/edit/:id" component={SalesCreateSchedule} />
@@ -174,7 +178,8 @@ function TrainerRoutes() {
       <Route path="/projects" component={TrainerProjectAssignments} />
       <Route path="/queries" component={TrainerQueries} />
       <Route path="/attendance" component={TrainerAttendance} />
-      <Route path="/student-progress" component={SharedStudentProgress} />
+      <Route path="/student-progress" component={SharedStudentProgressOverview} />
+      <Route path="/student-progress/:studentId" component={SharedStudentProgressDetail} />
       <Route path="/schedule" component={TrainerSchedules} />
       <Route component={NotFound} />
     </Switch>
