@@ -1,4 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { BookOpen, FileText, ChevronRight, Send } from "lucide-react";
@@ -8,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Badge } from "@/components/ui/badge";
 import { PageLayout } from "@/components/PageLayout";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 interface EnrolledCourse {
   id: string;
@@ -31,6 +33,9 @@ interface Course {
 
 export default function StudentCourses() {
   const { toast } = useToast();
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
+  const [selectedCourseTitle, setSelectedCourseTitle] = useState<string>("");
   
   const { data: courses, isLoading } = useQuery<EnrolledCourse[]>({
     queryKey: ["/api/student/courses"],
@@ -60,6 +65,9 @@ export default function StudentCourses() {
         description: data.message || "Your enrollment request has been sent to the admin",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/my-enrollment-requests"] });
+      setConfirmDialogOpen(false);
+      setSelectedCourseId(null);
+      setSelectedCourseTitle("");
     },
     onError: (error: any) => {
       toast({
@@ -67,8 +75,21 @@ export default function StudentCourses() {
         title: "Error",
         description: error.message || "Failed to send enrollment request",
       });
+      setConfirmDialogOpen(false);
     },
   });
+
+  const handleEnrollClick = (courseId: string, courseTitle: string) => {
+    setSelectedCourseId(courseId);
+    setSelectedCourseTitle(courseTitle);
+    setConfirmDialogOpen(true);
+  };
+
+  const handleConfirmEnroll = () => {
+    if (selectedCourseId) {
+      enrollMutation.mutate(selectedCourseId);
+    }
+  };
 
 
 
@@ -229,7 +250,7 @@ export default function StudentCourses() {
                   <Button 
                     size="sm" 
                     className="w-full" 
-                    onClick={() => enrollMutation.mutate(course.id)}
+                    onClick={() => handleEnrollClick(course.id, course.title)}
                     disabled={enrollMutation.isPending}
                     data-testid={`button-enroll-${course.id}`}
                   >
@@ -242,6 +263,16 @@ export default function StudentCourses() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmDialogOpen}
+        onOpenChange={setConfirmDialogOpen}
+        title="Confirm Enrollment Request"
+        description={`Are you sure you want to request enrollment in "${selectedCourseTitle}"? Your request will be sent to the admin for approval.`}
+        onConfirm={handleConfirmEnroll}
+        confirmText="Send Request"
+        cancelText="Cancel"
+      />
     </PageLayout>
   );
 }
