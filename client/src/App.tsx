@@ -223,7 +223,7 @@ function Router() {
     return (
       <Switch>
         <Route path="/" component={Landing} />
-        <Route component={NotFound} />
+        <Route component={Landing} />
       </Switch>
     );
   }
