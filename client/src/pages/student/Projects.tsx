@@ -9,6 +9,7 @@ import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { apiRequest } from '@/lib/queryClient';
 import { Upload, Download, Clock, CheckCircle, XCircle, AlertCircle, FileText, Calendar, User, BookOpen, Star } from 'lucide-react';
+import { PageLayout } from '@/components/PageLayout';
 
 interface ProjectAssignment {
   id: string;
@@ -144,12 +145,8 @@ export default function Projects() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">My Projects</h1>
-          <p className="text-muted-foreground">Track and submit your project assignments</p>
-        </div>
+    <PageLayout title="My Projects" subtitle="Track and submit your project assignments">
+      <div className="flex justify-end items-center mb-6">
         <div className="text-right">
           <p className="text-sm text-muted-foreground">Total Projects</p>
           <p className="text-2xl font-bold">{assignments.length}</p>
@@ -492,6 +489,6 @@ export default function Projects() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </PageLayout>
   );
 }

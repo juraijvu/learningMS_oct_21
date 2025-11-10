@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { apiRequest } from '@/lib/queryClient';
 import { Plus, Download, Eye, CheckCircle, XCircle, Paperclip, FileText, Users, BookOpen, Calendar, Star, Upload, Clock, AlertTriangle } from 'lucide-react';
+import { PageLayout } from '@/components/PageLayout';
 
 interface ProjectAssignment {
   id: string;
@@ -213,12 +214,8 @@ export default function ProjectAssignments() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Project Assignments</h1>
-          <p className="text-muted-foreground">Create and manage student project assignments</p>
-        </div>
+    <PageLayout title="Project Assignments" subtitle="Create and manage student project assignments">
+      <div className="flex justify-end items-center mb-6">
         <div className="text-right">
           <p className="text-sm text-muted-foreground">Total Assignments</p>
           <p className="text-2xl font-bold">{assignments.length}</p>
@@ -637,6 +634,6 @@ export default function ProjectAssignments() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </PageLayout>
   );
 }
