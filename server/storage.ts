@@ -1424,16 +1424,22 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getStudentTrainerAssignments(studentId?: string, trainerId?: string, courseId?: string): Promise<StudentTrainerAssignment[]> {
-    let query = db.select().from(studentTrainerAssignments);
+    const conditions = [];
     
     if (studentId) {
-      query = query.where(eq(studentTrainerAssignments.studentId, studentId));
+      conditions.push(eq(studentTrainerAssignments.studentId, studentId));
     }
     if (trainerId) {
-      query = query.where(eq(studentTrainerAssignments.trainerId, trainerId));
+      conditions.push(eq(studentTrainerAssignments.trainerId, trainerId));
     }
     if (courseId) {
-      query = query.where(eq(studentTrainerAssignments.courseId, courseId));
+      conditions.push(eq(studentTrainerAssignments.courseId, courseId));
+    }
+    
+    let query = db.select().from(studentTrainerAssignments);
+    
+    if (conditions.length > 0) {
+      query = query.where(conditions.length === 1 ? conditions[0] : and(...conditions));
     }
     
     return await query.orderBy(studentTrainerAssignments.assignedAt);
