@@ -93,6 +93,7 @@ import TrainerAttendance from "@/pages/trainer/Attendance";
 import TrainerQueries from "@/pages/trainer/Queries";
 import TrainerSharedFiles from "@/pages/trainer/SharedFiles";
 import TrainerProjectAssignments from "@/pages/trainer/ProjectAssignments";
+import TrainerSessionRecordings from "@/pages/trainer/SessionRecordings";
 
 // Student Pages
 import StudentDashboard from "@/pages/student/Dashboard";
@@ -106,6 +107,7 @@ import StudentMaterials from "@/pages/student/Materials";
 import StudentAttendance from "@/pages/student/Attendance";
 import StudentProjects from "@/pages/student/Projects";
 import StudentCertificates from "@/pages/student/Certificates";
+import StudentSessionRecordings from "@/pages/student/SessionRecordings";
 
 // Sales Pages (additional)
 import SalesCertificateManagement from "@/pages/sales/CertificateManagement";
@@ -177,6 +179,7 @@ function TrainerRoutes() {
       <Route path="/tasks" component={TrainerTasks} />
       <Route path="/materials" component={TrainerClassMaterials} />
       <Route path="/shared-files" component={TrainerSharedFiles} />
+      <Route path="/session-recordings" component={TrainerSessionRecordings} />
       <Route path="/projects" component={TrainerProjectAssignments} />
       <Route path="/queries" component={TrainerQueries} />
       <Route path="/attendance" component={TrainerAttendance} />
@@ -199,6 +202,7 @@ function StudentRoutes() {
       <Route path="/progress" component={StudentProgress} />
       <Route path="/tasks" component={StudentTasks} />
       <Route path="/materials" component={StudentMaterials} />
+      <Route path="/session-recordings" component={StudentSessionRecordings} />
       <Route path="/attendance" component={StudentAttendance} />
       <Route path="/queries" component={StudentQueries} />
       <Route path="/projects" component={StudentProjects} />

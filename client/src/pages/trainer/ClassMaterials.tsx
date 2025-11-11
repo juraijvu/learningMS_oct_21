@@ -297,7 +297,7 @@ export default function ClassMaterials() {
                   data-testid="input-file"
                 />
                 <p className="text-sm text-muted-foreground mt-1">
-                  Max 100MB. Supported: Videos, PDFs, Word, PowerPoint, Text files
+                  Max 400MB. Supported: Videos, PDFs, Word, PowerPoint, Text files
                 </p>
               </div>
 

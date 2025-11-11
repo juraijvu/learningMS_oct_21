@@ -129,11 +129,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Configure multer for file uploads
   const upload = multer({
     dest: 'uploads/',
-    limits: { fileSize: 100 * 1024 * 1024 }, // 100MB limit
+    limits: { fileSize: 400 * 1024 * 1024 }, // 400MB limit
     fileFilter: (req, file, cb) => {
       // Accept videos, documents, images, archives, and engineering files
       const allowedTypes = [
-        'video/mp4', 'video/mpeg', 'video/quicktime', 'video/x-msvideo', 'video/webm',
+        'video/mp4', 'video/mpeg', 'video/quicktime', 'video/x-msvideo', 'video/webm', 'video/ogg', 'video/3gpp', 'video/x-flv',
         'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
         'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -4275,6 +4275,132 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching assigned students:", error);
       res.status(500).json({ message: "Failed to fetch assigned students" });
+    }
+  });
+
+  // Upload session video recording
+  app.post("/api/upload-session-video", isAuthenticated, requireRole(['trainer']), upload.single('video'), async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No video file uploaded" });
+      }
+
+      const { scheduleId, courseName, studentName } = req.body;
+      
+      if (!scheduleId) {
+        return res.status(400).json({ message: "Schedule ID is required" });
+      }
+
+      // Verify the schedule exists and belongs to the trainer
+      const [schedule] = await db.select().from(schedules).where(eq(schedules.id, scheduleId));
+      if (!schedule) {
+        return res.status(404).json({ message: "Schedule not found" });
+      }
+
+      if (schedule.trainerId !== req.currentUser.id) {
+        return res.status(403).json({ message: "You can only upload videos for your own sessions" });
+      }
+
+      const videoUrl = `/uploads/${req.file.filename}`;
+      
+      // Create session recording record
+      const recording = await storage.createSessionRecording({
+        scheduleId,
+        trainerId: req.currentUser.id,
+        title: `${courseName} - ${studentName} Session`,
+        description: `Session recording for ${courseName} with ${studentName}`,
+        videoUrl,
+        fileName: req.file.originalname,
+        fileSize: req.file.size,
+      });
+      
+      // Log the video upload activity
+      await ActivityLogger.logVideoUploaded(
+        req.currentUser.id,
+        scheduleId,
+        courseName || 'Unknown Course',
+        studentName || 'Unknown Student',
+        req.file.originalname,
+        req
+      );
+
+      res.json({
+        success: true,
+        message: "Session video uploaded successfully",
+        recording,
+      });
+    } catch (error) {
+      // Clean up uploaded file if there's an error
+      if (req.file) {
+        await fs.unlink(req.file.path).catch(() => {});
+      }
+      console.error("Error uploading session video:", error);
+      res.status(500).json({ message: "Failed to upload session video" });
+    }
+  });
+
+  // Get session recordings for trainer
+  app.get("/api/trainer/session-recordings", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
+    try {
+      const trainerId = req.currentUser.id;
+      const recordings = await storage.getSessionRecordingsByTrainer(trainerId);
+      res.json(recordings);
+    } catch (error) {
+      console.error("Error fetching session recordings:", error);
+      res.status(500).json({ message: "Failed to fetch session recordings" });
+    }
+  });
+
+  // Share recording with students
+  app.post("/api/trainer/session-recordings/:id/share", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { studentIds } = req.body;
+      
+      const recording = await storage.getSessionRecordingById(id);
+      if (!recording || recording.trainerId !== req.currentUser.id) {
+        return res.status(404).json({ message: "Recording not found" });
+      }
+      
+      await storage.shareRecordingWithStudents(id, studentIds);
+      res.json({ message: "Recording shared successfully" });
+    } catch (error) {
+      console.error("Error sharing recording:", error);
+      res.status(500).json({ message: "Failed to share recording" });
+    }
+  });
+
+  // Delete session recording
+  app.delete("/api/trainer/session-recordings/:id", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      
+      const recording = await storage.getSessionRecordingById(id);
+      if (!recording || recording.trainerId !== req.currentUser.id) {
+        return res.status(404).json({ message: "Recording not found" });
+      }
+      
+      // Delete file from filesystem
+      const filePath = path.join(process.cwd(), recording.videoUrl);
+      await fs.unlink(filePath).catch(() => {});
+      
+      await storage.deleteSessionRecording(id);
+      res.json({ message: "Recording deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting recording:", error);
+      res.status(500).json({ message: "Failed to delete recording" });
+    }
+  });
+
+  // Get shared recordings for student
+  app.get("/api/student/session-recordings", isAuthenticated, requireRole(['student']), async (req: any, res) => {
+    try {
+      const studentId = req.currentUser.id;
+      const recordings = await storage.getSharedRecordingsForStudent(studentId);
+      res.json(recordings);
+    } catch (error) {
+      console.error("Error fetching shared recordings:", error);
+      res.status(500).json({ message: "Failed to fetch recordings" });
     }
   });
 

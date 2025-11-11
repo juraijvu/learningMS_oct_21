@@ -351,6 +351,34 @@ export const studentTrainerAssignments = pgTable("student_trainer_assignments", 
   index("idx_student_trainer_assignment_trainer").on(table.trainerId),
 ]);
 
+// Session recordings
+export const sessionRecordings = pgTable("session_recordings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  scheduleId: varchar("schedule_id").notNull().references(() => schedules.id, { onDelete: 'cascade' }),
+  trainerId: varchar("trainer_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  videoUrl: varchar("video_url", { length: 500 }).notNull(),
+  fileName: varchar("file_name", { length: 255 }).notNull(),
+  fileSize: integer("file_size").notNull(),
+  duration: integer("duration"), // in seconds
+  uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_session_recordings_trainer").on(table.trainerId),
+  index("idx_session_recordings_schedule").on(table.scheduleId),
+]);
+
+// Session recording shares
+export const sessionRecordingShares = pgTable("session_recording_shares", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  recordingId: varchar("recording_id").notNull().references(() => sessionRecordings.id, { onDelete: 'cascade' }),
+  studentId: varchar("student_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  sharedAt: timestamp("shared_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_session_recording_shares_unique").on(table.recordingId, table.studentId),
+  index("idx_session_recording_shares_student").on(table.studentId),
+]);
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   enrollments: many(enrollments),
@@ -607,6 +635,29 @@ export const studentTrainerAssignmentsRelations = relations(studentTrainerAssign
   }),
 }));
 
+export const sessionRecordingsRelations = relations(sessionRecordings, ({ one, many }) => ({
+  schedule: one(schedules, {
+    fields: [sessionRecordings.scheduleId],
+    references: [schedules.id],
+  }),
+  trainer: one(users, {
+    fields: [sessionRecordings.trainerId],
+    references: [users.id],
+  }),
+  shares: many(sessionRecordingShares),
+}));
+
+export const sessionRecordingSharesRelations = relations(sessionRecordingShares, ({ one }) => ({
+  recording: one(sessionRecordings, {
+    fields: [sessionRecordingShares.recordingId],
+    references: [sessionRecordings.id],
+  }),
+  student: one(users, {
+    fields: [sessionRecordingShares.studentId],
+    references: [users.id],
+  }),
+}));
+
 // Type exports
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
@@ -679,6 +730,12 @@ export type CertificateRequest = typeof certificateRequests.$inferSelect;
 
 export type InsertStudentTrainerAssignment = typeof studentTrainerAssignments.$inferInsert;
 export type StudentTrainerAssignment = typeof studentTrainerAssignments.$inferSelect;
+
+export type InsertSessionRecording = typeof sessionRecordings.$inferInsert;
+export type SessionRecording = typeof sessionRecordings.$inferSelect;
+
+export type InsertSessionRecordingShare = typeof sessionRecordingShares.$inferInsert;
+export type SessionRecordingShare = typeof sessionRecordingShares.$inferSelect;
 
 // Insert schemas for validation
 export const insertUserSchema = createInsertSchema(users).omit({
@@ -806,4 +863,14 @@ export const insertCertificateRequestSchema = createInsertSchema(certificateRequ
 export const insertStudentTrainerAssignmentSchema = createInsertSchema(studentTrainerAssignments).omit({
   id: true,
   assignedAt: true,
+});
+
+export const insertSessionRecordingSchema = createInsertSchema(sessionRecordings).omit({
+  id: true,
+  uploadedAt: true,
+});
+
+export const insertSessionRecordingShareSchema = createInsertSchema(sessionRecordingShares).omit({
+  id: true,
+  sharedAt: true,
 });

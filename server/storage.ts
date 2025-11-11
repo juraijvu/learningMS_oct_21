@@ -24,6 +24,8 @@ import {
   projectSubmissions,
   certificateRequests,
   studentTrainerAssignments,
+  sessionRecordings,
+  sessionRecordingShares,
   type User,
   type UpsertUser,
   type Course,
@@ -70,6 +72,10 @@ import {
   type InsertCertificateRequest,
   type InsertStudentTrainerAssignment,
   type StudentTrainerAssignment,
+  type SessionRecording,
+  type InsertSessionRecording,
+  type SessionRecordingShare,
+  type InsertSessionRecordingShare,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
@@ -220,6 +226,14 @@ export interface IStorage {
   deleteStudentTrainerAssignment(id: string): Promise<void>;
   getTrainerStudentsByCourse(trainerId: string, courseId: string): Promise<any[]>;
   getAllStudentTrainerAssignments(): Promise<any[]>;
+  
+  // Session recording operations
+  createSessionRecording(recording: InsertSessionRecording): Promise<SessionRecording>;
+  getSessionRecordingsByTrainer(trainerId: string): Promise<any[]>;
+  getSessionRecordingById(id: string): Promise<SessionRecording | undefined>;
+  shareRecordingWithStudents(recordingId: string, studentIds: string[]): Promise<void>;
+  deleteSessionRecording(id: string): Promise<void>;
+  getSharedRecordingsForStudent(studentId: string): Promise<any[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1501,6 +1515,87 @@ export class DatabaseStorage implements IStorage {
       console.error('Error in getAllStudentTrainerAssignments:', error);
       return [];
     }
+  }
+  
+  // Session recording operations
+  async createSessionRecording(recordingData: InsertSessionRecording): Promise<SessionRecording> {
+    const [recording] = await db
+      .insert(sessionRecordings)
+      .values(recordingData)
+      .returning();
+    return recording;
+  }
+
+  async getSessionRecordingsByTrainer(trainerId: string): Promise<any[]> {
+    const recordings = await db
+      .select({
+        id: sessionRecordings.id,
+        title: sessionRecordings.title,
+        description: sessionRecordings.description,
+        videoUrl: sessionRecordings.videoUrl,
+        fileName: sessionRecordings.fileName,
+        fileSize: sessionRecordings.fileSize,
+        duration: sessionRecordings.duration,
+        uploadedAt: sessionRecordings.uploadedAt,
+        scheduleId: sessionRecordings.scheduleId,
+        courseTitle: courses.title,
+        studentName: sql<string>`COALESCE(${users.firstName} || ' ' || ${users.lastName}, ${users.username})`,
+      })
+      .from(sessionRecordings)
+      .leftJoin(schedules, eq(sessionRecordings.scheduleId, schedules.id))
+      .leftJoin(courses, eq(schedules.courseId, courses.id))
+      .leftJoin(users, eq(schedules.studentId, users.id))
+      .where(eq(sessionRecordings.trainerId, trainerId))
+      .orderBy(desc(sessionRecordings.uploadedAt));
+    
+    return recordings;
+  }
+
+  async getSessionRecordingById(id: string): Promise<SessionRecording | undefined> {
+    const [recording] = await db
+      .select()
+      .from(sessionRecordings)
+      .where(eq(sessionRecordings.id, id));
+    return recording;
+  }
+
+  async shareRecordingWithStudents(recordingId: string, studentIds: string[]): Promise<void> {
+    const shares = studentIds.map(studentId => ({
+      recordingId,
+      studentId,
+    }));
+    
+    await db.insert(sessionRecordingShares).values(shares).onConflictDoNothing();
+  }
+
+  async deleteSessionRecording(id: string): Promise<void> {
+    await db.delete(sessionRecordings).where(eq(sessionRecordings.id, id));
+  }
+
+  async getSharedRecordingsForStudent(studentId: string): Promise<any[]> {
+    const recordings = await db
+      .select({
+        id: sessionRecordings.id,
+        title: sessionRecordings.title,
+        description: sessionRecordings.description,
+        videoUrl: sessionRecordings.videoUrl,
+        fileName: sessionRecordings.fileName,
+        fileSize: sessionRecordings.fileSize,
+        duration: sessionRecordings.duration,
+        uploadedAt: sessionRecordings.uploadedAt,
+        sharedAt: sessionRecordingShares.sharedAt,
+        trainerName: sql<string>`COALESCE(${users.firstName} || ' ' || ${users.lastName}, ${users.username})`,
+        courseTitle: courses.title,
+      })
+      .from(sessionRecordingShares)
+      .innerJoin(sessionRecordings, eq(sessionRecordingShares.recordingId, sessionRecordings.id))
+      .leftJoin(users, eq(sessionRecordings.trainerId, users.id))
+      .leftJoin(schedules, eq(sessionRecordings.scheduleId, schedules.id))
+      .leftJoin(courses, eq(schedules.courseId, courses.id))
+      .where(eq(sessionRecordingShares.studentId, studentId))
+      .orderBy(desc(sessionRecordingShares.sharedAt));
+    
+    return recordings;
   }
 }
 

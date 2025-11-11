@@ -16,7 +16,8 @@ import {
   Share,
   Award,
   FolderOpen,
-  Medal
+  Medal,
+  Video
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
@@ -111,6 +112,7 @@ const menuItems = {
     { title: "Tasks", url: "/tasks", icon: ClipboardList, testId: "link-trainer-tasks" },
     { title: "Class Materials", url: "/materials", icon: FileText, testId: "link-trainer-materials" },
     { title: "Shared Files", url: "/shared-files", icon: Share, testId: "link-trainer-shared-files" },
+    { title: "Session Recordings", url: "/session-recordings", icon: Video, testId: "link-trainer-session-recordings" },
     { title: "Projects", url: "/projects", icon: FolderOpen, testId: "link-trainer-projects" },
     { title: "Queries", url: "/queries", icon: MessageSquare, testId: "link-trainer-queries" },
     { title: "Schedule", url: "/schedule", icon: Calendar, testId: "link-trainer-schedule" },
@@ -124,6 +126,7 @@ const menuItems = {
     { title: "Tasks", url: "/tasks", icon: ClipboardList, testId: "link-student-tasks" },
     { title: "Projects", url: "/projects", icon: FolderOpen, testId: "link-student-projects" },
     { title: "Class Materials", url: "/materials", icon: FileText, testId: "link-student-materials" },
+    { title: "Session Recordings", url: "/session-recordings", icon: Video, testId: "link-student-session-recordings" },
     { title: "Certificates", url: "/certificates", icon: Medal, testId: "link-student-certificates" },
     { title: "Queries", url: "/queries", icon: MessageSquare, testId: "link-student-queries" },
     { title: "Schedule", url: "/schedule", icon: Calendar, testId: "link-student-schedule" },

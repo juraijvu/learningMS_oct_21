@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar, Clock, GraduationCap } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageLayout } from "@/components/PageLayout";
+import { VideoRecorder } from "@/components/VideoRecorder";
 
 interface ScheduleItem {
   id: string;
@@ -92,9 +93,16 @@ export default function TrainerSchedules() {
                               Student: {schedule.studentName}
                             </p>
                           </div>
-                          <div className="flex items-center gap-2 text-sm bg-blue-100 px-3 py-2 rounded-xl">
-                            <Clock className="h-4 w-4 text-blue-600" />
-                            <span className="font-medium text-blue-700">{schedule.timeSlot}</span>
+                          <div className="flex items-center gap-3">
+                            <VideoRecorder 
+                              scheduleId={schedule.id}
+                              courseName={schedule.courseTitle}
+                              studentName={schedule.studentName}
+                            />
+                            <div className="flex items-center gap-2 text-sm bg-blue-100 px-3 py-2 rounded-xl">
+                              <Clock className="h-4 w-4 text-blue-600" />
+                              <span className="font-medium text-blue-700">{schedule.timeSlot}</span>
+                            </div>
                           </div>
                         </div>
                       ))}

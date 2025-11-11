@@ -477,4 +477,21 @@ export class ActivityLogger {
       details: { courseTitle },
     });
   }
+
+  // Video recording activities
+  static async logVideoUploaded(
+    trainerId: string,
+    scheduleId: string,
+    courseName: string,
+    studentName: string,
+    fileName: string,
+    req?: Request
+  ): Promise<void> {
+    await this.log(trainerId, 'session_video_uploaded', {
+      req,
+      entityType: 'schedule',
+      entityId: scheduleId,
+      details: { courseName, studentName, fileName },
+    });
+  }
 }
