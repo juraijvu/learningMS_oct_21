@@ -85,6 +85,7 @@ const menuItems = {
     { title: "Enrollment Requests", url: "/enrollment-requests", icon: UserCheck, testId: "link-admin-enrollment-requests" },
     { title: "Student Enrollments", url: "/student-enrollments", icon: Users, testId: "link-admin-student-enrollments" },
     { title: "Trainer Assignments", url: "/trainer-assignments", icon: UserCheck, testId: "link-admin-trainer-assignments" },
+    { title: "Student-Trainer Assignments", url: "/student-trainer-assignments", icon: UserCheck, testId: "link-admin-student-trainer-assignments" },
     { title: "Activity Logs", url: "/activity-logs", icon: Activity, testId: "link-admin-activity-logs" },
     { title: "Schedules", url: "/schedules", icon: Calendar, testId: "link-admin-schedules" },
   ],

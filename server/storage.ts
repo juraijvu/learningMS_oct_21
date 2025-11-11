@@ -23,6 +23,7 @@ import {
   projectAssignments,
   projectSubmissions,
   certificateRequests,
+  studentTrainerAssignments,
   type User,
   type UpsertUser,
   type Course,
@@ -67,6 +68,8 @@ import {
   type InsertProjectSubmission,
   type CertificateRequest,
   type InsertCertificateRequest,
+  type InsertStudentTrainerAssignment,
+  type StudentTrainerAssignment,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
@@ -210,6 +213,13 @@ export interface IStorage {
   getAllCertificateRequests(): Promise<CertificateRequest[]>;
   issueCertificate(requestId: string, issuedBy: string, certificateUrl: string): Promise<CertificateRequest>;
   rejectCertificateRequest(requestId: string): Promise<CertificateRequest>;
+  
+  // Student-Trainer assignment operations
+  createStudentTrainerAssignment(assignment: InsertStudentTrainerAssignment): Promise<StudentTrainerAssignment>;
+  getStudentTrainerAssignments(studentId?: string, trainerId?: string, courseId?: string): Promise<StudentTrainerAssignment[]>;
+  deleteStudentTrainerAssignment(id: string): Promise<void>;
+  getTrainerStudentsByCourse(trainerId: string, courseId: string): Promise<any[]>;
+  getAllStudentTrainerAssignments(): Promise<any[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1108,106 +1118,179 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getTrainerStudentProgress(trainerId: string): Promise<any[]> {
-    // Get courses assigned to trainer
-    const trainerCourses = await db
-      .select({ courseId: trainerAssignments.courseId })
-      .from(trainerAssignments)
-      .where(eq(trainerAssignments.trainerId, trainerId));
-    
-    if (trainerCourses.length === 0) return [];
-    
-    const courseIds = trainerCourses.map(tc => tc.courseId);
-    
-    const result = await db
-      .select({
-        studentId: users.id,
-        studentName: sql<string>`${users.firstName} || ' ' || ${users.lastName}`,
-        studentEmail: users.email,
-        studentPhone: users.phoneNumber,
-        studentProfileImage: users.profileImageUrl,
-        courseId: courses.id,
-        courseTitle: courses.title,
-        moduleId: modules.id,
-        moduleTitle: modules.title,
-        moduleOrder: modules.order,
-        moduleSubPoints: modules.subPoints,
-        isCompleted: sql<boolean>`CASE WHEN ${moduleProgress.isCompleted} IS NULL THEN false ELSE ${moduleProgress.isCompleted} END`,
-        completedAt: moduleProgress.completedAt,
-        moduleCreatedAt: modules.createdAt,
-      })
-      .from(enrollments)
-      .innerJoin(users, eq(enrollments.studentId, users.id))
-      .innerJoin(courses, eq(enrollments.courseId, courses.id))
-      .innerJoin(modules, eq(courses.id, modules.courseId))
-      .leftJoin(moduleProgress, and(
-        eq(moduleProgress.studentId, users.id),
-        eq(moduleProgress.moduleId, modules.id)
-      ))
-      .where(inArray(courses.id, courseIds))
-      .orderBy(users.firstName, courses.title, sql`COALESCE(${modules.order}, 0)`, modules.createdAt);
+    try {
+      console.log('Getting trainer student progress for trainer:', trainerId);
+      
+      // First check if there are any assignments for this trainer
+      const assignments = await db
+        .select()
+        .from(studentTrainerAssignments)
+        .where(eq(studentTrainerAssignments.trainerId, trainerId));
+      
+      console.log(`Found ${assignments.length} assignments for trainer ${trainerId}:`, assignments);
+      
+      if (assignments.length === 0) {
+        console.log('No assignments found for trainer');
+        return [];
+      }
+      
+      // Check each join step by step
+      const studentsCheck = await db
+        .select({ studentId: users.id, studentName: sql<string>`COALESCE(${users.firstName} || ' ' || ${users.lastName}, ${users.username})` })
+        .from(studentTrainerAssignments)
+        .innerJoin(users, eq(studentTrainerAssignments.studentId, users.id))
+        .where(eq(studentTrainerAssignments.trainerId, trainerId));
+      
+      console.log(`Students found after user join: ${studentsCheck.length}`, studentsCheck);
+      
+      const coursesCheck = await db
+        .select({ courseId: courses.id, courseTitle: courses.title })
+        .from(studentTrainerAssignments)
+        .innerJoin(courses, eq(studentTrainerAssignments.courseId, courses.id))
+        .where(eq(studentTrainerAssignments.trainerId, trainerId));
+      
+      console.log(`Courses found after course join: ${coursesCheck.length}`, coursesCheck);
+      
+      const modulesCheck = await db
+        .select({ moduleId: modules.id, moduleTitle: modules.title, courseId: modules.courseId })
+        .from(studentTrainerAssignments)
+        .innerJoin(courses, eq(studentTrainerAssignments.courseId, courses.id))
+        .innerJoin(modules, eq(courses.id, modules.courseId))
+        .where(eq(studentTrainerAssignments.trainerId, trainerId));
+      
+      console.log(`Modules found after module join: ${modulesCheck.length}`, modulesCheck);
+      
+      const result = await db
+        .select({
+          studentId: users.id,
+          studentName: sql<string>`COALESCE(${users.firstName} || ' ' || ${users.lastName}, ${users.username})`,
+          studentEmail: users.email,
+          studentPhone: users.phoneNumber,
+          studentProfileImage: users.profileImageUrl,
+          courseId: courses.id,
+          courseTitle: courses.title,
+          moduleId: modules.id,
+          moduleTitle: modules.title,
+          moduleOrder: modules.order,
+          moduleSubPoints: modules.subPoints,
+          isCompleted: sql<boolean>`CASE WHEN ${moduleProgress.isCompleted} IS NULL THEN false ELSE ${moduleProgress.isCompleted} END`,
+          completedAt: moduleProgress.completedAt,
+          moduleCreatedAt: modules.createdAt,
+        })
+        .from(studentTrainerAssignments)
+        .innerJoin(users, eq(studentTrainerAssignments.studentId, users.id))
+        .innerJoin(courses, eq(studentTrainerAssignments.courseId, courses.id))
+        .leftJoin(modules, eq(courses.id, modules.courseId))
+        .leftJoin(moduleProgress, and(
+          eq(moduleProgress.studentId, users.id),
+          eq(moduleProgress.moduleId, modules.id)
+        ))
+        .where(eq(studentTrainerAssignments.trainerId, trainerId))
+        .orderBy(sql`COALESCE(${users.firstName}, ${users.username})`, courses.title, sql`COALESCE(${modules.order}, 0)`, modules.createdAt);
 
-    // Group by student and course
-    const grouped = result.reduce((acc, row) => {
-      const key = `${row.studentId}-${row.courseId}`;
-      if (!acc[key]) {
-        acc[key] = {
-          studentId: row.studentId,
-          studentName: row.studentName,
-          studentEmail: row.studentEmail,
-          studentPhone: row.studentPhone,
-          studentProfileImage: row.studentProfileImage,
-          courseId: row.courseId,
-          courseTitle: row.courseTitle,
+      console.log(`Found ${result.length} records for trainer ${trainerId}`);
+      
+      // If no results but we have assignments, create entries for students without modules
+      if (result.length === 0 && assignments.length > 0) {
+        const studentCourseData = await db
+          .select({
+            studentId: users.id,
+            studentName: sql<string>`COALESCE(${users.firstName} || ' ' || ${users.lastName}, ${users.username})`,
+            studentEmail: users.email,
+            studentPhone: users.phoneNumber,
+            studentProfileImage: users.profileImageUrl,
+            courseId: courses.id,
+            courseTitle: courses.title,
+          })
+          .from(studentTrainerAssignments)
+          .innerJoin(users, eq(studentTrainerAssignments.studentId, users.id))
+          .innerJoin(courses, eq(studentTrainerAssignments.courseId, courses.id))
+          .where(eq(studentTrainerAssignments.trainerId, trainerId));
+        
+        console.log(`Found ${studentCourseData.length} student-course pairs without modules`);
+        
+        return studentCourseData.map(item => ({
+          studentId: item.studentId,
+          studentName: item.studentName,
+          studentEmail: item.studentEmail,
+          studentPhone: item.studentPhone,
+          studentProfileImage: item.studentProfileImage,
+          courseId: item.courseId,
+          courseTitle: item.courseTitle,
           modules: [],
           totalModules: 0,
           completedModules: 0,
-        };
+          progressPercentage: 0,
+        }));
       }
-      
-      acc[key].modules.push({
-        id: row.moduleId,
-        title: row.moduleTitle,
-        order: row.moduleOrder,
-        subPoints: row.moduleSubPoints,
-        isCompleted: row.isCompleted,
-        completedAt: row.completedAt,
-        createdAt: row.moduleCreatedAt,
-      });
-      
-      acc[key].totalModules++;
-      if (row.isCompleted) {
-        acc[key].completedModules++;
-      }
-      
-      return acc;
-    }, {} as Record<string, any>);
 
-    return Object.values(grouped).map(item => ({
-      ...item,
-      modules: item.modules.sort((a, b) => {
-        // First sort by order if both have valid orders
-        if (a.order && b.order) {
-          return a.order - b.order;
+      const grouped = result.reduce((acc, row) => {
+        const key = `${row.studentId}-${row.courseId}`;
+        if (!acc[key]) {
+          acc[key] = {
+            studentId: row.studentId,
+            studentName: row.studentName,
+            studentEmail: row.studentEmail,
+            studentPhone: row.studentPhone,
+            studentProfileImage: row.studentProfileImage,
+            courseId: row.courseId,
+            courseTitle: row.courseTitle,
+            modules: [],
+            totalModules: 0,
+            completedModules: 0,
+          };
         }
-        // If one has order and other doesn't, prioritize the one with order
-        if (a.order && !b.order) return -1;
-        if (!a.order && b.order) return 1;
-        // If neither has order, sort by creation date
-        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-      }),
-      progressPercentage: item.totalModules > 0 ? Math.round((item.completedModules / item.totalModules) * 100) : 0,
-    }));
+        
+        // Only add module if it exists
+        if (row.moduleId) {
+          acc[key].modules.push({
+            id: row.moduleId,
+            title: row.moduleTitle,
+            order: row.moduleOrder,
+            subPoints: row.moduleSubPoints,
+            isCompleted: row.isCompleted,
+            completedAt: row.completedAt,
+            createdAt: row.moduleCreatedAt,
+          });
+          
+          acc[key].totalModules++;
+          if (row.isCompleted) {
+            acc[key].completedModules++;
+          }
+        }
+        
+        return acc;
+      }, {} as Record<string, any>);
+
+      const finalResult = Object.values(grouped).map(item => ({
+        ...item,
+        modules: item.modules.sort((a, b) => {
+          if (a.order && b.order) {
+            return a.order - b.order;
+          }
+          if (a.order && !b.order) return -1;
+          if (!a.order && b.order) return 1;
+          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        }),
+        progressPercentage: item.totalModules > 0 ? Math.round((item.completedModules / item.totalModules) * 100) : 0,
+      }));
+      
+      console.log(`Returning ${finalResult.length} student progress records`);
+      return finalResult;
+    } catch (error) {
+      console.error('Error in getTrainerStudentProgress:', error);
+      return [];
+    }
   }
 
   async verifyTrainerStudentAccess(trainerId: string, studentId: string): Promise<boolean> {
-    // Check if trainer has any courses with this student
+    // Check if trainer has this student assigned through student-trainer assignments
     const result = await db
       .select({ count: sql<number>`count(*)` })
-      .from(trainerAssignments)
-      .innerJoin(enrollments, eq(trainerAssignments.courseId, enrollments.courseId))
+      .from(studentTrainerAssignments)
       .where(and(
-        eq(trainerAssignments.trainerId, trainerId),
-        eq(enrollments.studentId, studentId)
+        eq(studentTrainerAssignments.trainerId, trainerId),
+        eq(studentTrainerAssignments.studentId, studentId)
       ));
     
     return (result[0]?.count || 0) > 0;
@@ -1329,6 +1412,89 @@ export class DatabaseStorage implements IStorage {
       .where(eq(certificateRequests.id, requestId))
       .returning();
     return request;
+  }
+  
+  // Student-Trainer assignment operations
+  async createStudentTrainerAssignment(assignmentData: InsertStudentTrainerAssignment): Promise<StudentTrainerAssignment> {
+    const [assignment] = await db
+      .insert(studentTrainerAssignments)
+      .values(assignmentData)
+      .returning();
+    return assignment;
+  }
+
+  async getStudentTrainerAssignments(studentId?: string, trainerId?: string, courseId?: string): Promise<StudentTrainerAssignment[]> {
+    let query = db.select().from(studentTrainerAssignments);
+    
+    if (studentId) {
+      query = query.where(eq(studentTrainerAssignments.studentId, studentId));
+    }
+    if (trainerId) {
+      query = query.where(eq(studentTrainerAssignments.trainerId, trainerId));
+    }
+    if (courseId) {
+      query = query.where(eq(studentTrainerAssignments.courseId, courseId));
+    }
+    
+    return await query.orderBy(studentTrainerAssignments.assignedAt);
+  }
+
+  async deleteStudentTrainerAssignment(id: string): Promise<void> {
+    await db
+      .delete(studentTrainerAssignments)
+      .where(eq(studentTrainerAssignments.id, id));
+  }
+
+  async getTrainerStudentsByCourse(trainerId: string, courseId: string): Promise<any[]> {
+    const assignments = await db
+      .select({
+        assignmentId: studentTrainerAssignments.id,
+        studentId: users.id,
+        studentName: sql<string>`${users.firstName} || ' ' || ${users.lastName}`,
+        studentEmail: users.email,
+        studentPhone: users.phoneNumber,
+        studentProfileImage: users.profileImageUrl,
+        courseId: courses.id,
+        courseTitle: courses.title,
+        assignedAt: studentTrainerAssignments.assignedAt,
+      })
+      .from(studentTrainerAssignments)
+      .innerJoin(users, eq(studentTrainerAssignments.studentId, users.id))
+      .innerJoin(courses, eq(studentTrainerAssignments.courseId, courses.id))
+      .where(and(
+        eq(studentTrainerAssignments.trainerId, trainerId),
+        eq(studentTrainerAssignments.courseId, courseId)
+      ))
+      .orderBy(users.firstName);
+    
+    return assignments;
+  }
+
+  async getAllStudentTrainerAssignments(): Promise<any[]> {
+    try {
+      const assignments = await db
+        .select({
+          id: studentTrainerAssignments.id,
+          studentId: studentTrainerAssignments.studentId,
+          studentName: sql<string>`COALESCE(student_users.first_name || ' ' || student_users.last_name, student_users.username)`,
+          studentEmail: sql<string>`student_users.email`,
+          trainerId: studentTrainerAssignments.trainerId,
+          trainerName: sql<string>`COALESCE(trainer_users.first_name || ' ' || trainer_users.last_name, trainer_users.username)`,
+          courseId: studentTrainerAssignments.courseId,
+          courseTitle: courses.title,
+          assignedAt: studentTrainerAssignments.assignedAt,
+        })
+        .from(studentTrainerAssignments)
+        .innerJoin(sql`users as student_users`, sql`student_trainer_assignments.student_id = student_users.id`)
+        .innerJoin(sql`users as trainer_users`, sql`student_trainer_assignments.trainer_id = trainer_users.id`)
+        .innerJoin(courses, eq(studentTrainerAssignments.courseId, courses.id))
+        .orderBy(courses.title, sql`COALESCE(student_users.first_name, student_users.username)`);
+      
+      return assignments;
+    } catch (error) {
+      console.error('Error in getAllStudentTrainerAssignments:', error);
+      return [];
+    }
   }
 }
 

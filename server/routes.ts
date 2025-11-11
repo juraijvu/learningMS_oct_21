@@ -3,7 +3,7 @@ import express from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated, hashPassword, verifyPassword } from "./auth";
-import { insertCourseSchema, insertModuleSchema, insertEnrollmentSchema, insertTaskSchema, insertScheduleSchema, insertQuerySchema, insertUserSchema, insertTrainerAssignmentSchema, insertClassMaterialSchema, insertAttendanceSchema, insertEnrollmentRequestSchema, insertPostSchema, insertPostCommentSchema, insertTrainerSharedFileSchema, classMaterials, posts, postComments, postLikes, trainerSharedFiles, projectAssignments, projectSubmissions, certificateRequests } from "@shared/schema";
+import { insertCourseSchema, insertModuleSchema, insertEnrollmentSchema, insertTaskSchema, insertScheduleSchema, insertQuerySchema, insertUserSchema, insertTrainerAssignmentSchema, insertClassMaterialSchema, insertAttendanceSchema, insertEnrollmentRequestSchema, insertPostSchema, insertPostCommentSchema, insertTrainerSharedFileSchema, insertStudentTrainerAssignmentSchema, classMaterials, posts, postComments, postLikes, trainerSharedFiles, projectAssignments, projectSubmissions, certificateRequests, studentTrainerAssignments } from "@shared/schema";
 import { db } from "./db";
 import { courses, modules, enrollments, users, trainerAssignments, moduleProgress, tasks, schedules, queries, attendance, enrollmentRequests } from "@shared/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
@@ -474,7 +474,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin: Get all courses
-  app.get("/api/admin/courses", isAuthenticated, requireRole(['admin']), async (req, res) => {
+  app.get("/api/admin/courses", isAuthenticated, requireRole(['admin', 'sales_consultant']), async (req, res) => {
     try {
       const allCourses = await storage.getAllCourses();
       res.json(allCourses);
@@ -671,12 +671,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const trainerId = req.currentUser?.id || req.session?.userId;
       const [myCoursesCount] = await db.select({ count: sql<number>`count(*)` }).from(trainerAssignments).where(eq(trainerAssignments.trainerId, trainerId));
       
-      // Get student count from enrollments in trainer's courses
-      const trainerCourses = await db.select({ courseId: trainerAssignments.courseId }).from(trainerAssignments).where(eq(trainerAssignments.trainerId, trainerId));
-      const courseIds = trainerCourses.map(tc => tc.courseId);
-      const [studentsCount] = courseIds.length > 0 
-        ? await db.select({ count: sql<number>`count(distinct ${enrollments.studentId})` }).from(enrollments).where(inArray(enrollments.courseId, courseIds))
-        : [{ count: 0 }];
+      // Get student count from student-trainer assignments
+      const [studentsCount] = await db.select({ count: sql<number>`count(distinct ${studentTrainerAssignments.studentId})` }).from(studentTrainerAssignments).where(eq(studentTrainerAssignments.trainerId, trainerId));
       
       const [pendingTasksCount] = await db.select({ count: sql<number>`count(*)` }).from(tasks).where(and(eq(tasks.assignedBy, trainerId), eq(tasks.status, 'submitted')));
       const [schedulesCount] = await db.select({ count: sql<number>`count(*)` }).from(schedules).where(eq(schedules.trainerId, trainerId));
@@ -703,12 +699,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         assignments.map(async (assignment) => {
           const course = await storage.getCourse(assignment.courseId);
           const courseModules = await storage.getModulesByCourse(assignment.courseId);
-          const [enrollmentCount] = await db.select({ count: sql<number>`count(*)` }).from(enrollments).where(eq(enrollments.courseId, assignment.courseId));
+          // Get student count from student-trainer assignments for this trainer and course
+          const [studentCount] = await db.select({ count: sql<number>`count(*)` })
+            .from(studentTrainerAssignments)
+            .where(and(
+              eq(studentTrainerAssignments.trainerId, trainerId),
+              eq(studentTrainerAssignments.courseId, assignment.courseId)
+            ));
           
           return {
             ...course,
             moduleCount: courseModules.length,
-            studentCount: enrollmentCount.count || 0,
+            studentCount: studentCount.count || 0,
           };
         })
       );
@@ -1798,12 +1800,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Trainer: Get all students from assigned courses
+  // Trainer: Get all students assigned to me
   app.get("/api/trainer/students", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
     try {
       const trainerId = req.currentUser.id;
       
-      // Use a single query with joins to get all students enrolled in trainer's courses
+      // Get students assigned to trainer through student-trainer assignments
       const studentsQuery = await db
         .select({
           id: users.id,
@@ -1817,10 +1819,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           updatedAt: users.updatedAt,
         })
         .from(users)
-        .innerJoin(enrollments, eq(users.id, enrollments.studentId))
-        .innerJoin(trainerAssignments, eq(enrollments.courseId, trainerAssignments.courseId))
+        .innerJoin(studentTrainerAssignments, eq(users.id, studentTrainerAssignments.studentId))
         .where(and(
-          eq(trainerAssignments.trainerId, trainerId),
+          eq(studentTrainerAssignments.trainerId, trainerId),
           eq(users.role, 'student')
         ))
         .groupBy(users.id, users.username, users.email, users.firstName, users.lastName, users.role, users.profileImageUrl, users.createdAt, users.updatedAt);
@@ -1832,20 +1833,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Trainer: Get course students
-  app.get("/api/trainer/courses/:courseId/students", isAuthenticated, requireRole(['trainer']), async (req, res) => {
+  // Trainer: Get course students assigned to me
+  app.get("/api/trainer/courses/:courseId/students", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
     try {
       const { courseId } = req.params;
-      const courseEnrollments = await db.select().from(enrollments).where(eq(enrollments.courseId, courseId));
+      const trainerId = req.currentUser.id;
       
-      const studentsWithDetails = await Promise.all(
-        courseEnrollments.map(async (enrollment) => {
-          const [student] = await db.select().from(users).where(eq(users.id, enrollment.studentId));
-          return student;
-        })
-      );
-
-      res.json(studentsWithDetails.filter(s => s !== undefined));
+      const students = await storage.getTrainerStudentsByCourse(trainerId, courseId);
+      res.json(students);
     } catch (error) {
       console.error("Error fetching course students:", error);
       res.status(500).json({ message: "Failed to fetch students" });
@@ -1858,8 +1853,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { courseId } = req.params;
       const trainerId = req.currentUser.id;
       
-      console.log('Trainer requesting modules:', { trainerId, courseId });
-      
       // Verify trainer is assigned to this course
       const assignment = await db.select().from(trainerAssignments)
         .where(and(
@@ -1867,18 +1860,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           eq(trainerAssignments.courseId, courseId)
         ));
       
-      console.log('Trainer assignments found:', assignment);
-      
       if (assignment.length === 0) {
-        console.log('Trainer not assigned to course, checking all assignments for trainer');
-        const allAssignments = await db.select().from(trainerAssignments)
-          .where(eq(trainerAssignments.trainerId, trainerId));
-        console.log('All trainer assignments:', allAssignments);
         return res.status(403).json({ message: "You are not assigned to this course" });
       }
       
       const courseModules = await storage.getModulesByCourse(courseId);
-      console.log('Modules found:', courseModules);
       res.json(courseModules);
     } catch (error) {
       console.error("Error fetching course modules:", error);
@@ -2452,6 +2438,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin/Sales: Get trainers assigned to a course
+  app.get("/api/admin/course-trainers/:courseId", isAuthenticated, requireRole(['admin', 'sales_consultant']), async (req: any, res) => {
+    try {
+      const { courseId } = req.params;
+      
+      const trainers = await db
+        .select({
+          id: users.id,
+          username: users.username,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          email: users.email,
+        })
+        .from(users)
+        .innerJoin(trainerAssignments, eq(users.id, trainerAssignments.trainerId))
+        .where(and(
+          eq(trainerAssignments.courseId, courseId),
+          eq(users.role, 'trainer')
+        ));
+      
+      res.json(trainers);
+    } catch (error) {
+      console.error("Error fetching course trainers:", error);
+      res.status(500).json({ message: "Failed to fetch course trainers" });
+    }
+  });
+
   // Trainer: Get other trainers (for file sharing)
   app.get("/api/trainer/trainers", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
     try {
@@ -2482,6 +2495,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching students:", error);
       res.status(500).json({ message: "Failed to fetch students" });
+    }
+  });
+
+  // Admin/Sales: Get unassigned students for a course
+  app.get("/api/admin/unassigned-students/:courseId", isAuthenticated, requireRole(['admin', 'sales_consultant']), async (req: any, res) => {
+    try {
+      const { courseId } = req.params;
+      
+      // Get all students enrolled in the course
+      const enrolledStudents = await db
+        .select({
+          id: users.id,
+          username: users.username,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          email: users.email,
+        })
+        .from(users)
+        .innerJoin(enrollments, eq(users.id, enrollments.studentId))
+        .where(and(
+          eq(enrollments.courseId, courseId),
+          eq(users.role, 'student')
+        ));
+      
+      // Get students already assigned to trainers for this course
+      const assignedStudents = await db
+        .select({ studentId: studentTrainerAssignments.studentId })
+        .from(studentTrainerAssignments)
+        .where(eq(studentTrainerAssignments.courseId, courseId));
+      
+      const assignedStudentIds = assignedStudents.map(a => a.studentId);
+      
+      // Filter out already assigned students
+      const unassignedStudents = enrolledStudents.filter(
+        student => !assignedStudentIds.includes(student.id)
+      );
+      
+      res.json(unassignedStudents);
+    } catch (error) {
+      console.error("Error fetching unassigned students:", error);
+      res.status(500).json({ message: "Failed to fetch unassigned students" });
     }
   });
 
@@ -4152,6 +4206,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error rejecting certificate request:", error);
       res.status(500).json({ message: "Failed to reject certificate request" });
+    }
+  });
+
+  // ============ STUDENT-TRAINER ASSIGNMENT ROUTES ============
+  
+  // Admin/Sales: Get all student-trainer assignments
+  app.get("/api/admin/student-trainer-assignments", isAuthenticated, requireRole(['admin', 'sales_consultant']), async (req: any, res) => {
+    try {
+      const assignments = await storage.getAllStudentTrainerAssignments();
+      res.json(assignments);
+    } catch (error) {
+      console.error("Error fetching student-trainer assignments:", error);
+      res.status(500).json({ message: "Failed to fetch assignments" });
+    }
+  });
+
+  // Admin/Sales: Create student-trainer assignment
+  app.post("/api/admin/student-trainer-assignments", isAuthenticated, requireRole(['admin', 'sales_consultant']), async (req: any, res) => {
+    try {
+      const assignmentData = insertStudentTrainerAssignmentSchema.parse({
+        ...req.body,
+        assignedBy: req.currentUser?.id || req.session?.userId,
+      });
+      
+      // Check if assignment already exists
+      const existingAssignments = await storage.getStudentTrainerAssignments(
+        assignmentData.studentId,
+        assignmentData.trainerId,
+        assignmentData.courseId
+      );
+      
+      if (existingAssignments.length > 0) {
+        return res.status(400).json({ message: "Student is already assigned to this trainer for this course" });
+      }
+      
+      const assignment = await storage.createStudentTrainerAssignment(assignmentData);
+      res.json(assignment);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid input", errors: error.errors });
+      }
+      console.error("Error creating student-trainer assignment:", error);
+      res.status(500).json({ message: "Failed to create assignment" });
+    }
+  });
+
+  // Admin/Sales: Delete student-trainer assignment
+  app.delete("/api/admin/student-trainer-assignments/:id", isAuthenticated, requireRole(['admin', 'sales_consultant']), async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteStudentTrainerAssignment(id);
+      res.json({ message: "Assignment deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting student-trainer assignment:", error);
+      res.status(500).json({ message: "Failed to delete assignment" });
+    }
+  });
+
+  // Trainer: Get students assigned to me for a specific course
+  app.get("/api/trainer/assigned-students/:courseId", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
+    try {
+      const trainerId = req.currentUser.id;
+      const { courseId } = req.params;
+      
+      const students = await storage.getTrainerStudentsByCourse(trainerId, courseId);
+      res.json(students);
+    } catch (error) {
+      console.error("Error fetching assigned students:", error);
+      res.status(500).json({ message: "Failed to fetch assigned students" });
     }
   });
 

@@ -337,6 +337,20 @@ export const certificateRequests = pgTable("certificate_requests", {
   index("idx_certificate_request_status").on(table.status),
 ]);
 
+// Student-Trainer assignments for specific courses
+export const studentTrainerAssignments = pgTable("student_trainer_assignments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  studentId: varchar("student_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  trainerId: varchar("trainer_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  courseId: varchar("course_id").notNull().references(() => courses.id, { onDelete: 'cascade' }),
+  assignedBy: varchar("assigned_by").notNull().references(() => users.id),
+  assignedAt: timestamp("assigned_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_student_trainer_assignment_unique").on(table.studentId, table.trainerId, table.courseId),
+  index("idx_student_trainer_assignment_student").on(table.studentId),
+  index("idx_student_trainer_assignment_trainer").on(table.trainerId),
+]);
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   enrollments: many(enrollments),
@@ -574,6 +588,25 @@ export const certificateRequestsRelations = relations(certificateRequests, ({ on
   }),
 }));
 
+export const studentTrainerAssignmentsRelations = relations(studentTrainerAssignments, ({ one }) => ({
+  student: one(users, {
+    fields: [studentTrainerAssignments.studentId],
+    references: [users.id],
+  }),
+  trainer: one(users, {
+    fields: [studentTrainerAssignments.trainerId],
+    references: [users.id],
+  }),
+  course: one(courses, {
+    fields: [studentTrainerAssignments.courseId],
+    references: [courses.id],
+  }),
+  assigner: one(users, {
+    fields: [studentTrainerAssignments.assignedBy],
+    references: [users.id],
+  }),
+}));
+
 // Type exports
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
@@ -643,6 +676,9 @@ export type ProjectSubmission = typeof projectSubmissions.$inferSelect;
 
 export type InsertCertificateRequest = typeof certificateRequests.$inferInsert;
 export type CertificateRequest = typeof certificateRequests.$inferSelect;
+
+export type InsertStudentTrainerAssignment = typeof studentTrainerAssignments.$inferInsert;
+export type StudentTrainerAssignment = typeof studentTrainerAssignments.$inferSelect;
 
 // Insert schemas for validation
 export const insertUserSchema = createInsertSchema(users).omit({
@@ -765,4 +801,9 @@ export const insertCertificateRequestSchema = createInsertSchema(certificateRequ
   id: true,
   requestedAt: true,
   issuedAt: true,
+});
+
+export const insertStudentTrainerAssignmentSchema = createInsertSchema(studentTrainerAssignments).omit({
+  id: true,
+  assignedAt: true,
 });

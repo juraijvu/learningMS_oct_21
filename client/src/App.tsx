@@ -65,6 +65,7 @@ import AdminEnrollmentRequests from "@/pages/admin/EnrollmentRequests";
 import AdminPostApproval from "@/pages/admin/PostApproval";
 import AdminStudentEnrollments from "@/pages/admin/StudentEnrollments";
 import AdminTrainerAssignments from "@/pages/admin/TrainerAssignments";
+import AdminStudentTrainerAssignments from "@/pages/admin/StudentTrainerAssignments";
 import Posts from "@/pages/Posts";
 import Profile from "@/pages/Profile";
 import SharedCourseModules from "@/pages/shared/CourseModules";
@@ -128,6 +129,7 @@ function AdminRoutes() {
       <Route path="/enrollment-requests" component={AdminEnrollmentRequests} />
       <Route path="/student-enrollments" component={AdminStudentEnrollments} />
       <Route path="/trainer-assignments" component={AdminTrainerAssignments} />
+      <Route path="/student-trainer-assignments" component={AdminStudentTrainerAssignments} />
       <Route path="/activity-logs" component={AdminActivityLogs} />
       <Route path="/student-progress" component={SharedStudentProgressOverview} />
       <Route path="/student-progress/:studentId" component={SharedStudentProgressDetail} />
