@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { NotificationSystem } from "@/components/NotificationSystem";
 import { AppSidebar } from "@/components/AppSidebar";
 import { PasswordChangeDialog } from "@/components/PasswordChangeDialog";
 import { useAuth } from "@/hooks/useAuth";
@@ -108,6 +109,7 @@ import StudentAttendance from "@/pages/student/Attendance";
 import StudentProjects from "@/pages/student/Projects";
 import StudentCertificates from "@/pages/student/Certificates";
 import StudentSessionRecordings from "@/pages/student/SessionRecordings";
+import StudentCompletionRequests from "@/pages/student/CompletionRequests";
 
 // Sales Pages (additional)
 import SalesCertificateManagement from "@/pages/sales/CertificateManagement";
@@ -207,6 +209,7 @@ function StudentRoutes() {
       <Route path="/queries" component={StudentQueries} />
       <Route path="/projects" component={StudentProjects} />
       <Route path="/certificates" component={StudentCertificates} />
+      <Route path="/completion-requests" component={StudentCompletionRequests} />
       <Route path="/schedule" component={StudentSchedule} />
       <Route component={NotFound} />
     </Switch>
@@ -253,7 +256,10 @@ function Router() {
           <header className="flex items-center justify-between p-2 md:p-4 border-b bg-background sticky top-0 z-10">
             <SidebarTrigger data-testid="button-sidebar-toggle" className="md:hidden" />
             <h1 className="text-lg md:text-xl font-semibold truncate">{user?.role?.replace('_', ' ').toUpperCase()}</h1>
-            <ThemeToggle />
+            <div className="flex items-center gap-2">
+              <NotificationSystem />
+              <ThemeToggle />
+            </div>
           </header>
           <main className="flex-1 overflow-auto pb-16 md:pb-0">
             <RoleBasedRoutes />

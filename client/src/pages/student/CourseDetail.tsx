@@ -28,6 +28,17 @@ interface ModuleProgress {
   completedAt?: string;
 }
 
+interface CompletionRequest {
+  id: string;
+  moduleId: string;
+  moduleTitle: string;
+  courseTitle: string;
+  trainerName: string;
+  message: string;
+  status: 'pending' | 'completed' | 'dismissed';
+  requestedAt: string;
+}
+
 interface Course {
   id: string;
   title: string;
@@ -69,6 +80,10 @@ export default function StudentCourseDetail() {
     queryKey: ['/api/student/progress'],
   });
 
+  const { data: completionRequests } = useQuery<CompletionRequest[]>({
+    queryKey: ['/api/student/completion-requests'],
+  });
+
   const completeModuleMutation = useMutation({
     mutationFn: async (moduleId: string) => {
       try {
@@ -83,9 +98,10 @@ export default function StudentCourseDetail() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/student/progress'] });
       queryClient.invalidateQueries({ queryKey: ['/api/student/courses'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/student/completion-requests'] });
       toast({
-        title: "Module Completed!",
-        description: data?.message || "You've marked this module as complete.",
+        title: "✅ Module Completed!",
+        description: data?.message || "You've successfully marked this module as complete.",
       });
     },
     onError: (error: any) => {
@@ -118,6 +134,10 @@ export default function StudentCourseDetail() {
 
   const isModuleCompleted = (moduleId: string) => {
     return progress?.some(p => p.moduleId === moduleId && p.isCompleted) || false;
+  };
+
+  const getModuleRequestStatus = (moduleId: string) => {
+    return completionRequests?.find(r => r.moduleId === moduleId && r.status === 'pending');
   };
 
   const formatFileSize = (bytes: number) => {
@@ -280,6 +300,11 @@ export default function StudentCourseDetail() {
                           {completed && (
                             <Badge variant="default" className="bg-green-600 dark:bg-green-700">Completed</Badge>
                           )}
+                          {!completed && getModuleRequestStatus(module.id) && (
+                            <Badge variant="outline" className="border-orange-300 text-orange-700 bg-orange-50">
+                              📋 Requested by Trainer
+                            </Badge>
+                          )}
                         </div>
                         {module.subPoints && module.subPoints.length > 0 && (
                           <ul className="space-y-1">
@@ -292,19 +317,31 @@ export default function StudentCourseDetail() {
                           </ul>
                         )}
                         {!completed && (
-                          <Button
-                            size="sm"
-                            className="mt-3"
-                            onClick={() => {
-                              setConfirmDialog({ open: true, moduleId: module.id, moduleTitle: module.title });
-                              setConfirmed(false);
-                            }}
-                            disabled={completeModuleMutation.isPending}
-                            data-testid={`button-complete-${module.id}`}
-                          >
-                            <CheckCircle className="h-4 w-4 mr-1" />
-                            {completeModuleMutation.isPending ? "Marking..." : "Mark as Complete"}
-                          </Button>
+                          <div className="mt-3 space-y-2">
+                            {getModuleRequestStatus(module.id) && (
+                              <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                                <p className="text-sm text-orange-800 font-medium">
+                                  📋 Your trainer has requested you to complete this module
+                                </p>
+                                <p className="text-xs text-orange-600 mt-1">
+                                  {getModuleRequestStatus(module.id)?.message}
+                                </p>
+                              </div>
+                            )}
+                            <Button
+                              size="sm"
+                              className={getModuleRequestStatus(module.id) ? "bg-orange-600 hover:bg-orange-700" : ""}
+                              onClick={() => {
+                                setConfirmDialog({ open: true, moduleId: module.id, moduleTitle: module.title });
+                                setConfirmed(false);
+                              }}
+                              disabled={completeModuleMutation.isPending}
+                              data-testid={`button-complete-${module.id}`}
+                            >
+                              <CheckCircle className="h-4 w-4 mr-1" />
+                              {completeModuleMutation.isPending ? "Marking..." : "Mark as Complete"}
+                            </Button>
+                          </div>
                         )}
                       </div>
                     </div>

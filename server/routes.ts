@@ -3,7 +3,7 @@ import express from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated, hashPassword, verifyPassword } from "./auth";
-import { insertCourseSchema, insertModuleSchema, insertEnrollmentSchema, insertTaskSchema, insertScheduleSchema, insertQuerySchema, insertUserSchema, insertTrainerAssignmentSchema, insertClassMaterialSchema, insertAttendanceSchema, insertEnrollmentRequestSchema, insertPostSchema, insertPostCommentSchema, insertTrainerSharedFileSchema, insertStudentTrainerAssignmentSchema, classMaterials, posts, postComments, postLikes, trainerSharedFiles, projectAssignments, projectSubmissions, certificateRequests, studentTrainerAssignments } from "@shared/schema";
+import { insertCourseSchema, insertModuleSchema, insertEnrollmentSchema, insertTaskSchema, insertScheduleSchema, insertQuerySchema, insertUserSchema, insertTrainerAssignmentSchema, insertClassMaterialSchema, insertAttendanceSchema, insertEnrollmentRequestSchema, insertPostSchema, insertPostCommentSchema, insertTrainerSharedFileSchema, insertStudentTrainerAssignmentSchema, classMaterials, posts, postComments, postLikes, trainerSharedFiles, projectAssignments, projectSubmissions, certificateRequests, studentTrainerAssignments, moduleCompletionRequests, notifications } from "@shared/schema";
 import { db } from "./db";
 import { courses, modules, enrollments, users, trainerAssignments, moduleProgress, tasks, schedules, queries, attendance, enrollmentRequests } from "@shared/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
@@ -1844,6 +1844,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching course students:", error);
       res.status(500).json({ message: "Failed to fetch students" });
+    }
+  });
+
+  // Trainer: Get student progress for a specific course
+  app.get("/api/trainer/courses/:courseId/progress", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
+    try {
+      const { courseId } = req.params;
+      const trainerId = req.currentUser.id;
+      
+      // Get all progress for students assigned to this trainer in this course
+      const assignments = await db
+        .select({
+          studentId: studentTrainerAssignments.studentId,
+        })
+        .from(studentTrainerAssignments)
+        .where(and(
+          eq(studentTrainerAssignments.trainerId, trainerId),
+          eq(studentTrainerAssignments.courseId, courseId)
+        ));
+      
+      if (assignments.length === 0) {
+        return res.json([]);
+      }
+      
+      const studentIds = assignments.map(a => a.studentId);
+      
+      // Get modules for this course
+      const courseModules = await db
+        .select()
+        .from(modules)
+        .where(eq(modules.courseId, courseId))
+        .orderBy(modules.order, modules.createdAt);
+      
+      // Get progress for each student
+      const progressData = await Promise.all(
+        studentIds.map(async (studentId) => {
+          const studentProgress = await db
+            .select()
+            .from(moduleProgress)
+            .where(and(
+              eq(moduleProgress.studentId, studentId),
+              inArray(moduleProgress.moduleId, courseModules.map(m => m.id))
+            ));
+          
+          const completedModuleIds = studentProgress
+            .filter(p => p.isCompleted)
+            .map(p => p.moduleId);
+          
+          return {
+            studentId,
+            totalModules: courseModules.length,
+            completedModules: completedModuleIds.length,
+            completedModuleIds,
+          };
+        })
+      );
+      
+      res.json(progressData);
+    } catch (error) {
+      console.error("Error fetching course progress:", error);
+      res.status(500).json({ message: "Failed to fetch course progress" });
     }
   });
 
@@ -4401,6 +4462,174 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching shared recordings:", error);
       res.status(500).json({ message: "Failed to fetch recordings" });
+    }
+  });
+
+  // Request module completion
+  app.post("/api/trainer/request-module-completion", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
+    try {
+      const { moduleId, studentId, message } = req.body;
+      const trainerId = req.currentUser.id;
+      
+      // Check if request already exists for this specific module
+      const existing = await db.select()
+        .from(moduleCompletionRequests)
+        .where(and(
+          eq(moduleCompletionRequests.moduleId, moduleId),
+          eq(moduleCompletionRequests.studentId, studentId),
+          eq(moduleCompletionRequests.status, 'pending')
+        ));
+      
+      if (existing.length > 0) {
+        return res.status(400).json({ message: "A completion request for this module is already pending" });
+      }
+      
+      const request = await storage.createModuleCompletionRequest({
+        moduleId,
+        studentId,
+        trainerId,
+        message,
+      });
+      
+      // Create notification
+      const [module] = await db.select().from(modules).where(eq(modules.id, moduleId));
+      await storage.createNotification({
+        userId: studentId,
+        type: 'module_completion_request',
+        title: 'Module Completion Request',
+        message: `Your trainer has requested you to mark "${module?.title}" as complete`,
+        data: { requestId: request.id, moduleId },
+      });
+      
+      res.json(request);
+    } catch (error) {
+      console.error("Error creating completion request:", error);
+      res.status(500).json({ message: "Failed to create request" });
+    }
+  });
+
+  // Get completion requests for student
+  app.get("/api/student/completion-requests", isAuthenticated, requireRole(['student']), async (req: any, res) => {
+    try {
+      const studentId = req.currentUser.id;
+      const requests = await storage.getModuleCompletionRequestsByStudent(studentId);
+      res.json(requests);
+    } catch (error) {
+      console.error("Error fetching completion requests:", error);
+      res.status(500).json({ message: "Failed to fetch requests" });
+    }
+  });
+
+  // Trainer: Get completion requests for a specific student
+  app.get("/api/trainer/completion-requests/:studentId", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
+    try {
+      const { studentId } = req.params;
+      const trainerId = req.currentUser.id;
+      
+      // Verify trainer has access to this student
+      const hasAccess = await storage.verifyTrainerStudentAccess(trainerId, studentId);
+      if (!hasAccess) {
+        return res.status(403).json({ message: "Access denied - Student not in your courses" });
+      }
+      
+      const requests = await db.select({
+        id: moduleCompletionRequests.id,
+        moduleId: moduleCompletionRequests.moduleId,
+        status: moduleCompletionRequests.status,
+        requestedAt: moduleCompletionRequests.requestedAt,
+      })
+      .from(moduleCompletionRequests)
+      .where(and(
+        eq(moduleCompletionRequests.studentId, studentId),
+        eq(moduleCompletionRequests.trainerId, trainerId)
+      ))
+      .orderBy(desc(moduleCompletionRequests.requestedAt));
+      
+      res.json(requests);
+    } catch (error) {
+      console.error("Error fetching trainer completion requests:", error);
+      res.status(500).json({ message: "Failed to fetch requests" });
+    }
+  });
+
+  // Respond to completion request
+  app.patch("/api/student/completion-requests/:id/respond", isAuthenticated, requireRole(['student']), async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { action } = req.body; // 'complete' or 'dismiss'
+      
+      const status = action === 'complete' ? 'completed' : 'dismissed';
+      const request = await storage.respondToCompletionRequest(id, status);
+      
+      // If completing, mark module as complete
+      if (action === 'complete') {
+        const [requestData] = await db.select().from(moduleCompletionRequests).where(eq(moduleCompletionRequests.id, id));
+        if (requestData) {
+          await storage.updateModuleProgress({
+            studentId: requestData.studentId,
+            moduleId: requestData.moduleId,
+            isCompleted: true,
+            completedBy: requestData.studentId,
+          });
+          
+          // Log activity
+          const [module] = await db.select().from(modules).where(eq(modules.id, requestData.moduleId));
+          await ActivityLogger.logModuleCompleted(requestData.studentId, requestData.moduleId, module?.title || 'Unknown Module', req);
+        }
+      }
+      
+      res.json(request);
+    } catch (error) {
+      console.error("Error responding to completion request:", error);
+      res.status(500).json({ message: "Failed to respond to request" });
+    }
+  });
+
+  // Get notifications
+  app.get("/api/notifications", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session?.userId;
+      const notifications = await storage.getNotificationsByUser(userId);
+      res.json(notifications);
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
+      res.status(500).json({ message: "Failed to fetch notifications" });
+    }
+  });
+
+  // Mark notification as read
+  app.patch("/api/notifications/:id/read", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      await storage.markNotificationAsRead(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error marking notification as read:", error);
+      res.status(500).json({ message: "Failed to mark notification as read" });
+    }
+  });
+
+  // Mark all notifications as read
+  app.patch("/api/notifications/read-all", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session?.userId;
+      await storage.markAllNotificationsAsRead(userId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error marking all notifications as read:", error);
+      res.status(500).json({ message: "Failed to mark all notifications as read" });
+    }
+  });
+
+  // Get unread notification count
+  app.get("/api/notifications/unread-count", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session?.userId;
+      const count = await storage.getUnreadNotificationCount(userId);
+      res.json({ count });
+    } catch (error) {
+      console.error("Error fetching unread count:", error);
+      res.status(500).json({ message: "Failed to fetch unread count" });
     }
   });
 

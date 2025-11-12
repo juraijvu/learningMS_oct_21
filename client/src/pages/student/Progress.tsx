@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { CheckCircle, Circle, BookOpen, TrendingUp } from "lucide-react";
+import { CheckCircle, Circle, BookOpen, TrendingUp, MessageSquare } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { PageLayout } from "@/components/PageLayout";
@@ -15,9 +16,24 @@ interface ModuleWithProgress {
   completedAt?: string;
 }
 
+interface CompletionRequest {
+  id: string;
+  moduleId: string;
+  moduleTitle: string;
+  courseTitle: string;
+  trainerName: string;
+  message: string;
+  status: 'pending' | 'completed' | 'dismissed';
+  requestedAt: string;
+}
+
 export default function StudentProgress() {
   const { data: modulesData, isLoading } = useQuery<ModuleWithProgress[]>({
     queryKey: ["/api/student/progress"],
+  });
+
+  const { data: completionRequests } = useQuery<CompletionRequest[]>({
+    queryKey: ['/api/student/completion-requests'],
   });
 
   if (isLoading) {
@@ -119,14 +135,22 @@ export default function StudentProgress() {
                     {modules.map((module, index) => (
                       <AccordionItem value={module.id} key={module.id}>
                         <AccordionTrigger className="hover:no-underline" data-testid={`module-${module.id}`}>
-                          <div className="flex items-center gap-3 text-left">
+                          <div className="flex items-center gap-3 text-left w-full">
                             {module.isCompleted ? (
                               <CheckCircle className="h-5 w-5 text-chart-2 flex-shrink-0" />
                             ) : (
                               <Circle className="h-5 w-5 text-muted-foreground flex-shrink-0" />
                             )}
-                            <div>
-                              <p className="font-medium">{module.title}</p>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="font-medium">{module.title}</p>
+                                {!module.isCompleted && completionRequests?.find(r => r.moduleId === module.id && r.status === 'pending') && (
+                                  <Badge variant="outline" className="border-orange-300 text-orange-700 bg-orange-50 text-xs">
+                                    <MessageSquare className="h-3 w-3 mr-1" />
+                                    Trainer Request
+                                  </Badge>
+                                )}
+                              </div>
                               {module.completedAt && (
                                 <p className="text-xs text-muted-foreground mt-1">
                                   Completed: {new Date(module.completedAt).toLocaleDateString()}

@@ -1,12 +1,15 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { CheckCircle, Circle, User, BookOpen, Award, ArrowLeft, Mail, Phone } from "lucide-react";
+import { CheckCircle, Circle, User, BookOpen, Award, ArrowLeft, Mail, Phone, MessageSquare } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { Link, useParams } from "wouter";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { useToast } from "@/hooks/use-toast";
+import { useState } from "react";
 
 interface StudentProgressDetail {
   studentId: string;
@@ -34,11 +37,67 @@ interface StudentProgressDetail {
 export default function StudentProgressDetail() {
   const { user } = useAuth();
   const { studentId } = useParams();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [confirmDialog, setConfirmDialog] = useState<{ open: boolean; moduleId: string; moduleTitle: string }>({ open: false, moduleId: '', moduleTitle: '' });
 
   const { data: studentData, isLoading } = useQuery<StudentProgressDetail>({
     queryKey: [`/api/${user?.role === 'admin' ? 'admin' : user?.role === 'sales_consultant' ? 'sales' : 'trainer'}/student-progress/${studentId}`],
     enabled: !!studentId,
   });
+
+  const { data: completionRequests } = useQuery({
+    queryKey: [`/api/trainer/completion-requests/${studentId}`],
+    enabled: !!studentId && user?.role === 'trainer',
+  });
+
+  const requestCompletionMutation = useMutation({
+    mutationFn: async ({ moduleId, message }: { moduleId: string; message: string }) => {
+      const response = await fetch('/api/trainer/request-module-completion', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ moduleId, studentId, message }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Failed to send request' }));
+        throw new Error(errorData.message || 'Failed to send request');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/${user?.role === 'admin' ? 'admin' : user?.role === 'sales_consultant' ? 'sales' : 'trainer'}/student-progress/${studentId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/trainer/completion-requests/${studentId}`] });
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
+      
+      const moduleTitle = confirmDialog.moduleTitle;
+      toast({
+        title: "✅ Request Sent Successfully",
+        description: `${studentData?.studentName} will be notified to complete "${moduleTitle}"`
+      });
+      setConfirmDialog({ open: false, moduleId: '', moduleTitle: '' });
+    },
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "❌ Request Failed",
+        description: error.message || "Failed to send completion request"
+      });
+      setConfirmDialog({ open: false, moduleId: '', moduleTitle: '' });
+    },
+  });
+
+  const handleRequestCompletion = (moduleId: string, moduleTitle: string) => {
+    setConfirmDialog({ open: true, moduleId, moduleTitle });
+  };
+
+  const confirmRequest = () => {
+    const message = `Please mark "${confirmDialog.moduleTitle}" as complete when you have finished studying all the materials.`;
+    requestCompletionMutation.mutate({ moduleId: confirmDialog.moduleId, message });
+  };
+
+  const isModuleRequested = (moduleId: string) => {
+    return completionRequests?.some((req: any) => req.moduleId === moduleId && req.status === 'pending') || false;
+  };
 
   if (isLoading) {
     return (
@@ -212,11 +271,32 @@ export default function StudentProgressDetail() {
                         </Badge>
                       )}
                     </div>
-                    {module.isCompleted && module.completedAt && (
-                      <span className="text-sm text-muted-foreground">
-                        Completed: {new Date(module.completedAt).toLocaleDateString()}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {module.isCompleted && module.completedAt && (
+                        <span className="text-sm text-muted-foreground">
+                          Completed: {new Date(module.completedAt).toLocaleDateString()}
+                        </span>
+                      )}
+                      {!module.isCompleted && user?.role === 'trainer' && (
+                        <div className="flex items-center gap-2">
+                          {isModuleRequested(module.id) && (
+                            <Badge variant="outline" className="border-orange-300 text-orange-700 bg-orange-50 text-xs">
+                              📋 Requested
+                            </Badge>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleRequestCompletion(module.id, module.title)}
+                            disabled={requestCompletionMutation.isPending || isModuleRequested(module.id)}
+                            className={isModuleRequested(module.id) ? "opacity-50 cursor-not-allowed" : "text-blue-600 border-blue-200 hover:bg-blue-50"}
+                          >
+                            <MessageSquare className="h-3 w-3 mr-1" />
+                            {isModuleRequested(module.id) ? "Already Requested" : "Request Completion"}
+                          </Button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   {module.subPoints && module.subPoints.length > 0 && (
                     <div className="mt-3 ml-10">
@@ -245,6 +325,16 @@ export default function StudentProgressDetail() {
           </CardContent>
         </Card>
       )}
+
+      <ConfirmDialog
+        open={confirmDialog.open}
+        onOpenChange={(open) => setConfirmDialog({ ...confirmDialog, open })}
+        title="📋 Send Module Completion Request"
+        description={`Send a request to ${studentData?.studentName} to mark "${confirmDialog.moduleTitle}" as complete? They will receive a notification and can respond to your request.`}
+        onConfirm={confirmRequest}
+        confirmText="✅ Send Request"
+        cancelText="Cancel"
+      />
     </div>
   );
 }

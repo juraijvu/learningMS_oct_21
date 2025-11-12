@@ -17,7 +17,8 @@ import {
   Award,
   FolderOpen,
   Medal,
-  Video
+  Video,
+  CheckSquare
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
@@ -128,6 +129,7 @@ const menuItems = {
     { title: "Class Materials", url: "/materials", icon: FileText, testId: "link-student-materials" },
     { title: "Session Recordings", url: "/session-recordings", icon: Video, testId: "link-student-session-recordings" },
     { title: "Certificates", url: "/certificates", icon: Medal, testId: "link-student-certificates" },
+    { title: "Completion Requests", url: "/completion-requests", icon: CheckSquare, testId: "link-student-completion-requests" },
     { title: "Queries", url: "/queries", icon: MessageSquare, testId: "link-student-queries" },
     { title: "Schedule", url: "/schedule", icon: Calendar, testId: "link-student-schedule" },
   ],
