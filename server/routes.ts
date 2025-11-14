@@ -2344,7 +2344,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/trainer/materials", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
     try {
       const trainerId = req.currentUser.id;
-      const materials = await storage.getClassMaterialsByTrainer(trainerId);
+      const materials = await storage.getClassMaterialsByTrainerWithAssignments(trainerId);
       res.json(materials);
     } catch (error) {
       console.error("Error fetching trainer materials:", error);

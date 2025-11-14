@@ -9,10 +9,20 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Upload, FileText, Video, Download, Trash2, UserPlus, Calendar } from "lucide-react";
+import { Upload, FileText, Video, Download, Trash2, UserPlus, Calendar, Users } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { PageLayout } from "@/components/PageLayout";
 import type { ClassMaterial, Course, User } from "@shared/schema";
+
+interface ClassMaterialWithAssignments extends ClassMaterial {
+  assignedStudents?: {
+    id: string;
+    studentId: string;
+    studentName: string;
+    studentEmail: string;
+    assignedAt: Date;
+  }[];
+}
 import { format } from "date-fns";
 
 export default function ClassMaterials() {
@@ -33,7 +43,7 @@ export default function ClassMaterials() {
   });
 
   // Fetch trainer's materials
-  const { data: materials, isLoading: materialsLoading } = useQuery<ClassMaterial[]>({
+  const { data: materials, isLoading: materialsLoading } = useQuery<ClassMaterialWithAssignments[]>({
     queryKey: ["/api/trainer/materials"],
   });
 
@@ -359,6 +369,29 @@ export default function ClassMaterials() {
                       {daysLeft > 0 ? `Expires in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}` : 'Expired'}
                     </span>
                   </div>
+
+                  {material.assignedStudents && material.assignedStudents.length > 0 && (
+                    <div className="flex items-start gap-2 text-sm bg-purple-50 p-3 rounded-xl">
+                      <Users className="h-4 w-4 text-purple-600 mt-0.5" />
+                      <div className="text-purple-700">
+                        <span className="font-medium block mb-1">
+                          Assigned to {material.assignedStudents.length} student{material.assignedStudents.length !== 1 ? 's' : ''}:
+                        </span>
+                        <div className="text-xs space-y-1">
+                          {material.assignedStudents.slice(0, 3).map((assignment: any) => (
+                            <div key={assignment.id}>
+                              {assignment.studentName}
+                            </div>
+                          ))}
+                          {material.assignedStudents.length > 3 && (
+                            <div className="text-purple-600 font-medium">
+                              +{material.assignedStudents.length - 3} more
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="flex gap-2 pt-2">
                     <Button

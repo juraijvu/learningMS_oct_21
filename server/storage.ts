@@ -150,6 +150,8 @@ export interface IStorage {
   assignMaterialToStudent(materialId: string, studentId: string): Promise<MaterialAssignment>;
   getStudentMaterials(studentId: string): Promise<ClassMaterial[]>;
   getMaterialAssignments(materialId: string): Promise<MaterialAssignment[]>;
+  getMaterialAssignmentsWithStudents(materialId: string): Promise<any[]>;
+  getClassMaterialsByTrainerWithAssignments(trainerId: string): Promise<any[]>;
   
   // Activity log operations
   createActivityLog(log: InsertActivityLog): Promise<ActivityLog>;
@@ -621,6 +623,26 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(classMaterials.uploadedAt));
   }
 
+  async getClassMaterialsByTrainerWithAssignments(trainerId: string): Promise<any[]> {
+    const materials = await db
+      .select()
+      .from(classMaterials)
+      .where(eq(classMaterials.trainerId, trainerId))
+      .orderBy(desc(classMaterials.uploadedAt));
+
+    const materialsWithAssignments = await Promise.all(
+      materials.map(async (material) => {
+        const assignments = await this.getMaterialAssignmentsWithStudents(material.id);
+        return {
+          ...material,
+          assignedStudents: assignments,
+        };
+      })
+    );
+
+    return materialsWithAssignments;
+  }
+
   // Material assignment operations
   async assignMaterialToStudent(materialId: string, studentId: string): Promise<MaterialAssignment> {
     // Check if assignment already exists
@@ -664,6 +686,21 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(materialAssignments)
       .where(eq(materialAssignments.materialId, materialId));
+  }
+
+  async getMaterialAssignmentsWithStudents(materialId: string): Promise<any[]> {
+    return await db
+      .select({
+        id: materialAssignments.id,
+        studentId: users.id,
+        studentName: sql<string>`COALESCE(${users.firstName} || ' ' || ${users.lastName}, ${users.username})`,
+        studentEmail: users.email,
+        assignedAt: materialAssignments.assignedAt,
+      })
+      .from(materialAssignments)
+      .innerJoin(users, eq(materialAssignments.studentId, users.id))
+      .where(eq(materialAssignments.materialId, materialId))
+      .orderBy(sql`COALESCE(${users.firstName}, ${users.username})`);
   }
 
   // Activity log operations
