@@ -26,8 +26,8 @@ import {
   studentTrainerAssignments,
   sessionRecordings,
   sessionRecordingShares,
-  moduleCompletionRequests,
   notifications,
+  moduleCompletionRequests,
   type User,
   type UpsertUser,
   type Course,
@@ -78,10 +78,10 @@ import {
   type InsertSessionRecording,
   type SessionRecordingShare,
   type InsertSessionRecordingShare,
-  type ModuleCompletionRequest,
-  type InsertModuleCompletionRequest,
   type Notification,
   type InsertNotification,
+  type ModuleCompletionRequest,
+  type InsertModuleCompletionRequest,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
@@ -241,17 +241,17 @@ export interface IStorage {
   deleteSessionRecording(id: string): Promise<void>;
   getSharedRecordingsForStudent(studentId: string): Promise<any[]>;
   
+  // Notification operations
+  createNotification(notification: InsertNotification): Promise<Notification>;
+  getNotificationsByUser(userId: string): Promise<Notification[]>;
+  getUnreadNotificationCount(userId: string): Promise<number>;
+  markNotificationAsRead(notificationId: string): Promise<Notification>;
+  markAllNotificationsAsRead(userId: string): Promise<void>;
+  
   // Module completion request operations
   createModuleCompletionRequest(request: InsertModuleCompletionRequest): Promise<ModuleCompletionRequest>;
   getModuleCompletionRequestsByStudent(studentId: string): Promise<any[]>;
   respondToCompletionRequest(requestId: string, status: 'completed' | 'dismissed'): Promise<ModuleCompletionRequest>;
-  
-  // Notification operations
-  createNotification(notification: InsertNotification): Promise<Notification>;
-  getNotificationsByUser(userId: string): Promise<Notification[]>;
-  markNotificationAsRead(notificationId: string): Promise<void>;
-  markAllNotificationsAsRead(userId: string): Promise<void>;
-  getUnreadNotificationCount(userId: string): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -475,11 +475,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateTask(id: string, updates: Partial<Task>): Promise<Task> {
+    console.log(`[Storage] Updating task ${id} with:`, updates);
     const [task] = await db
       .update(tasks)
       .set(updates)
       .where(eq(tasks.id, id))
       .returning();
+    console.log(`[Storage] Task updated successfully:`, task);
     return task;
   }
 

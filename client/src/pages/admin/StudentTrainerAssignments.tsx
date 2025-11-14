@@ -63,8 +63,8 @@ export default function StudentTrainerAssignments() {
     try {
       console.log('Fetching data...');
       const [assignmentsRes, coursesRes] = await Promise.all([
-        apiRequest('/api/admin/student-trainer-assignments'),
-        apiRequest('/api/admin/courses'),
+        apiRequest('GET', '/api/admin/student-trainer-assignments'),
+        apiRequest('GET', '/api/admin/courses'),
       ]);
 
       console.log('Assignments:', assignmentsRes);
@@ -83,8 +83,8 @@ export default function StudentTrainerAssignments() {
   const fetchStudentsAndTrainers = async (courseId: string) => {
     try {
       const [studentsRes, trainersRes] = await Promise.all([
-        apiRequest(`/api/admin/unassigned-students/${courseId}`),
-        apiRequest(`/api/admin/course-trainers/${courseId}`),
+        apiRequest('GET', `/api/admin/unassigned-students/${courseId}`),
+        apiRequest('GET', `/api/admin/course-trainers/${courseId}`),
       ]);
 
       setStudents(studentsRes);
@@ -103,10 +103,7 @@ export default function StudentTrainerAssignments() {
 
   const handleCreateAssignment = async () => {
     try {
-      await apiRequest('/api/admin/student-trainer-assignments', {
-        method: 'POST',
-        body: newAssignment,
-      });
+      await apiRequest('POST', '/api/admin/student-trainer-assignments', newAssignment);
 
       setIsCreateDialogOpen(false);
       setNewAssignment({ courseId: '', studentId: '', trainerId: '' });
@@ -122,9 +119,7 @@ export default function StudentTrainerAssignments() {
     if (!confirm('Are you sure you want to delete this assignment?')) return;
 
     try {
-      await apiRequest(`/api/admin/student-trainer-assignments/${id}`, {
-        method: 'DELETE',
-      });
+      await apiRequest('DELETE', `/api/admin/student-trainer-assignments/${id}`);
       fetchData();
     } catch (error) {
       console.error('Error deleting assignment:', error);

@@ -23,15 +23,11 @@ async function throwIfResNotOk(res: Response) {
 }
 
 export async function apiRequest(
+  method: string,
   url: string,
-  options?: {
-    method?: string;
-    body?: unknown;
-    headers?: Record<string, string>;
-  }
+  body?: unknown,
+  headers?: Record<string, string>
 ): Promise<any> {
-  const { method = "GET", body, headers = {} } = options || {};
-  
   const res = await fetch(url, {
     method,
     headers: {

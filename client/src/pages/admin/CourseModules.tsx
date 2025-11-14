@@ -34,7 +34,7 @@ export default function CourseModules() {
 
   const createModuleMutation = useMutation({
     mutationFn: async (moduleData: { title: string; subPoints: string[] }) => {
-      return await apiRequest(`/api/admin/courses/${courseId}/modules`, { method: "POST", body: moduleData });
+      return await apiRequest("POST", `/api/admin/courses/${courseId}/modules`, moduleData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/admin/courses/${courseId}/modules`] });
@@ -48,7 +48,7 @@ export default function CourseModules() {
 
   const updateModuleMutation = useMutation({
     mutationFn: async ({ moduleId, moduleData }: { moduleId: string; moduleData: { title: string; subPoints: string[] } }) => {
-      return await apiRequest(`/api/admin/courses/${courseId}/modules/${moduleId}`, { method: "PUT", body: moduleData });
+      return await apiRequest("PUT", `/api/admin/courses/${courseId}/modules/${moduleId}`, moduleData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/admin/courses/${courseId}/modules`] });
@@ -62,7 +62,7 @@ export default function CourseModules() {
 
   const deleteModuleMutation = useMutation({
     mutationFn: async (moduleId: string) => {
-      return await apiRequest(`/api/admin/courses/${courseId}/modules/${moduleId}`, { method: "DELETE" });
+      return await apiRequest("DELETE", `/api/admin/courses/${courseId}/modules/${moduleId}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/admin/courses/${courseId}/modules`] });

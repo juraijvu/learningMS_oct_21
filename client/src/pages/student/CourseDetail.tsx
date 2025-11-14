@@ -87,9 +87,7 @@ export default function StudentCourseDetail() {
   const completeModuleMutation = useMutation({
     mutationFn: async (moduleId: string) => {
       try {
-        return await apiRequest(`/api/student/progress/${moduleId}/complete`, {
-          method: "POST",
-        });
+        return await apiRequest("POST", `/api/student/progress/${moduleId}/complete`);
       } catch (error: any) {
         console.error('[Client] API request failed:', error);
         throw error;

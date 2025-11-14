@@ -91,10 +91,7 @@ export default function ClassMaterials() {
   // Assign mutation
   const assignMutation = useMutation({
     mutationFn: async ({ materialId, studentIds }: { materialId: string; studentIds: string[] }) => {
-      return apiRequest(`/api/class-materials/${materialId}/assign`, {
-        method: "POST",
-        body: { studentIds },
-      });
+      return apiRequest("POST", `/api/class-materials/${materialId}/assign`, { studentIds });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/student/materials"] });
@@ -119,9 +116,7 @@ export default function ClassMaterials() {
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      return apiRequest(`/api/class-materials/${id}`, {
-        method: "DELETE",
-      });
+      return apiRequest("DELETE", `/api/class-materials/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/trainer/materials"] });

@@ -25,10 +25,7 @@ export default function EnrollStudent() {
 
   const enrollStudentMutation = useMutation({
     mutationFn: async (data: { studentId: string; courseId: string }) => {
-      return await apiRequest("/api/admin/enroll-student", {
-        method: "POST",
-        body: data,
-      });
+      return await apiRequest("POST", "/api/admin/enroll-student", data);
     },
     onSuccess: (data) => {
       toast({

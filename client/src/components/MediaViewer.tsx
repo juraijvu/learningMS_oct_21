@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Download, X, AlertCircle } from "lucide-react";
+import { Download, X, AlertCircle, Loader2 } from "lucide-react";
 
 interface MediaViewerProps {
   isOpen: boolean;
@@ -24,17 +24,33 @@ export function MediaViewer({
   const [pageNumber, setPageNumber] = useState(1);
   const [videoError, setVideoError] = useState(false);
   const [pdfError, setPdfError] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  
+  const showNotification = (title: string, message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    // Simple notification using browser alert for now
+    console.log(`${type.toUpperCase()}: ${title} - ${message}`);
+  };
 
   useEffect(() => {
     if (isOpen) {
       setVideoError(false);
       setPdfError(false);
+      setIsLoading(true);
+      showNotification("Loading media", `Opening ${fileName}...`, 'info');
+      
+      // Simulate loading completion
+      const timer = setTimeout(() => setIsLoading(false), 1000);
+      return () => clearTimeout(timer);
     }
-  }, [isOpen, fileUrl]);
+  }, [isOpen, fileUrl, fileName]);
 
   const handleDownload = async () => {
+    setDownloadProgress(true);
+    showNotification("Download started", `Downloading ${fileName}...`, 'info');
+    
     try {
       const response = await fetch(fileUrl);
       if (response.ok) {
@@ -47,10 +63,14 @@ export function MediaViewer({
         link.click();
         document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
+        
+        showNotification("Download completed", `${fileName} has been downloaded successfully`, 'success');
       } else {
         throw new Error('Fetch failed');
       }
     } catch (error) {
+      showNotification("Download method changed", "Opening file in new tab for download", 'info');
+      
       const link = document.createElement('a');
       link.href = fileUrl;
       link.download = fileName;
@@ -58,6 +78,8 @@ export function MediaViewer({
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+    } finally {
+      setDownloadProgress(false);
     }
   };
 
@@ -89,8 +111,17 @@ export function MediaViewer({
             preload="metadata"
             className="w-full h-auto max-h-[60vh] md:max-h-[70vh] rounded"
             style={{ maxWidth: '100%' }}
-            onError={() => setVideoError(true)}
-            onLoadStart={() => setVideoError(false)}
+            onError={() => {
+              setVideoError(true);
+              showNotification("Video error", "Unable to load video. Try downloading instead.", 'error');
+            }}
+            onLoadStart={() => {
+              setVideoError(false);
+              showNotification("Video loading", "Loading video content...", 'info');
+            }}
+            onLoadedData={() => {
+              showNotification("Video ready", "Video loaded successfully", 'success');
+            }}
             controlsList="nodownload noremoteplayback"
             disablePictureInPicture={true}
             onContextMenu={(e) => e.preventDefault()}
@@ -148,7 +179,13 @@ export function MediaViewer({
             className="w-full h-full border-0 rounded"
             title={fileName}
             style={{ minHeight: '300px' }}
-            onError={() => setPdfError(true)}
+            onError={() => {
+              setPdfError(true);
+              showNotification("PDF error", "Unable to display PDF. Try downloading instead.", 'error');
+            }}
+            onLoad={() => {
+              showNotification("PDF loaded", "PDF document is ready to view", 'success');
+            }}
             onContextMenu={(e) => e.preventDefault()}
           />
           <style>{`
@@ -193,11 +230,18 @@ export function MediaViewer({
                 <Button 
                   variant="outline" 
                   size="sm" 
-                  onClick={handleDownload} 
+                  onClick={handleDownload}
+                  disabled={downloadProgress}
                   className="text-xs md:text-sm px-2 md:px-3"
                 >
-                  <Download className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
-                  <span className="hidden sm:inline">Download</span>
+                  {downloadProgress ? (
+                    <Loader2 className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2 animate-spin" />
+                  ) : (
+                    <Download className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
+                  )}
+                  <span className="hidden sm:inline">
+                    {downloadProgress ? "Downloading..." : "Download"}
+                  </span>
                 </Button>
               )}
               <Button variant="ghost" size="sm" onClick={onClose} className="p-1 md:p-2">
@@ -210,7 +254,14 @@ export function MediaViewer({
           </DialogDescription>
         </DialogHeader>
         <div className="flex-1 p-2 md:p-4 overflow-auto">
-          {renderContent()}
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center h-64">
+              <Loader2 className="h-8 w-8 animate-spin text-blue-500 mb-4" />
+              <p className="text-gray-600">Loading {fileType}...</p>
+            </div>
+          ) : (
+            renderContent()
+          )}
         </div>
       </DialogContent>
     </Dialog>

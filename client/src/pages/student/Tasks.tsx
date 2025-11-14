@@ -22,6 +22,7 @@ const statusConfig = {
 
 export default function StudentTasks() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadingTaskId, setUploadingTaskId] = useState<string | null>(null);
   const { toast } = useToast();
 
   const { data: tasks, isLoading } = useQuery<Task[]>({
@@ -30,25 +31,73 @@ export default function StudentTasks() {
 
   const submitTaskMutation = useMutation({
     mutationFn: async ({ taskId, fileUrl }: { taskId: string; fileUrl: string }) => {
-      return await apiRequest("POST", `/api/student/tasks/${taskId}/submit`, { fileUrl });
+      console.log(`[Frontend] Submitting task ${taskId} with fileUrl: ${fileUrl}`);
+      const result = await apiRequest("POST", `/api/student/tasks/${taskId}/submit`, { fileUrl });
+      console.log(`[Frontend] Task submission result:`, result);
+      return result;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log(`[Frontend] Task submission successful:`, data);
       queryClient.invalidateQueries({ queryKey: ["/api/student/tasks"] });
       toast({ title: "Success", description: "Task submitted successfully" });
       setSelectedFile(null);
+      setUploadingTaskId(null);
     },
     onError: (error: Error) => {
+      console.error(`[Frontend] Task submission error:`, error);
       toast({ title: "Error", description: error.message, variant: "destructive" });
+      setUploadingTaskId(null);
     },
   });
 
   const handleFileUpload = async (taskId: string) => {
     if (!selectedFile) return;
     
-    // In a real app, you would upload the file to a storage service
-    // For now, we'll use a placeholder URL
-    const fileUrl = `https://storage.example.com/${selectedFile.name}`;
-    submitTaskMutation.mutate({ taskId, fileUrl });
+    setUploadingTaskId(taskId);
+    
+    toast({ 
+      title: "Uploading", 
+      description: "Uploading your file...", 
+      duration: 2000 
+    });
+    
+    try {
+      // First upload the file
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      
+      const uploadResponse = await fetch('/api/student/tasks/upload-file', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!uploadResponse.ok) {
+        throw new Error('File upload failed');
+      }
+      
+      const uploadResult = await uploadResponse.json();
+      
+      if (!uploadResult.success) {
+        throw new Error(uploadResult.message || 'File upload failed');
+      }
+      
+      toast({ 
+        title: "File uploaded", 
+        description: "Submitting your task...", 
+        duration: 2000 
+      });
+      
+      // Then submit the task with the uploaded file URL
+      console.log(`[Frontend] About to submit task with fileUrl: ${uploadResult.fileUrl}`);
+      submitTaskMutation.mutate({ taskId, fileUrl: uploadResult.fileUrl });
+    } catch (error) {
+      toast({ 
+        title: "Error", 
+        description: error instanceof Error ? error.message : "Failed to upload file", 
+        variant: "destructive" 
+      });
+      setUploadingTaskId(null);
+    }
   };
 
   const pendingTasks = tasks?.filter(t => t.status === 'pending' || t.status === 'needs_revision') || [];
@@ -155,11 +204,11 @@ export default function StudentTasks() {
                           />
                           <Button
                             onClick={() => handleFileUpload(task.id)}
-                            disabled={!selectedFile || submitTaskMutation.isPending}
+                            disabled={!selectedFile || submitTaskMutation.isPending || uploadingTaskId === task.id}
                             data-testid={`button-submit-${task.id}`}
                           >
                             <Upload className="h-4 w-4 mr-2" />
-                            Submit
+                            {uploadingTaskId === task.id ? "Uploading..." : "Submit"}
                           </Button>
                         </div>
                       </div>

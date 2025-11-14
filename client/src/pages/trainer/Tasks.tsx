@@ -67,9 +67,7 @@ export default function TrainerTasks() {
       }
       
       try {
-        const result = await apiRequest(`/api/courses/${taskForm.courseId}/modules`, {
-          method: "GET"
-        });
+        const result = await apiRequest("GET", `/api/courses/${taskForm.courseId}/modules`);
         return result || [];
       } catch (error) {
         console.error('Error fetching modules:', error);
@@ -130,10 +128,7 @@ export default function TrainerTasks() {
             ...taskData,
             studentId,
           };
-          return await apiRequest("/api/trainer/tasks", {
-            method: "POST",
-            body: taskPayload
-          });
+          return await apiRequest("POST", "/api/trainer/tasks", taskPayload);
         })
       );
       return tasks;
@@ -160,9 +155,7 @@ export default function TrainerTasks() {
   // Approve task mutation
   const approveTaskMutation = useMutation({
     mutationFn: async (taskId: string) => {
-      return await apiRequest(`/api/trainer/tasks/${taskId}/approve`, {
-        method: "PATCH"
-      });
+      return await apiRequest("PATCH", `/api/trainer/tasks/${taskId}/approve`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/trainer/tasks"] });
@@ -183,9 +176,7 @@ export default function TrainerTasks() {
   // Reject task mutation
   const rejectTaskMutation = useMutation({
     mutationFn: async (taskId: string) => {
-      return await apiRequest(`/api/trainer/tasks/${taskId}/reject`, {
-        method: "PATCH"
-      });
+      return await apiRequest("PATCH", `/api/trainer/tasks/${taskId}/reject`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/trainer/tasks"] });

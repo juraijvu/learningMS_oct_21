@@ -82,9 +82,9 @@ export default function ProjectAssignments() {
   const fetchData = async () => {
     try {
       const [assignmentsRes, coursesRes, studentsRes] = await Promise.all([
-        apiRequest('/api/trainer/projects'),
-        apiRequest('/api/trainer/courses'),
-        apiRequest('/api/trainer/students'),
+        apiRequest('GET', '/api/trainer/projects'),
+        apiRequest('GET', '/api/trainer/courses'),
+        apiRequest('GET', '/api/trainer/students'),
       ]);
 
       setAssignments(assignmentsRes);
@@ -130,13 +130,10 @@ export default function ProjectAssignments() {
       }
 
       // Create assignment with attachment info
-      await apiRequest('/api/trainer/projects', {
-        method: 'POST',
-        body: {
-          ...newAssignment,
-          attachmentUrl,
-          attachmentName,
-        },
+      await apiRequest('POST', '/api/trainer/projects', {
+        ...newAssignment,
+        attachmentUrl,
+        attachmentName,
       });
 
       setIsCreateDialogOpen(false);
@@ -160,10 +157,7 @@ export default function ProjectAssignments() {
     if (!selectedSubmission) return;
 
     try {
-      await apiRequest(`/api/trainer/projects/submissions/${selectedSubmission.id}/review`, {
-        method: 'PATCH',
-        body: reviewData,
-      });
+      await apiRequest('PATCH', `/api/trainer/projects/submissions/${selectedSubmission.id}/review`, reviewData);
 
       setIsReviewDialogOpen(false);
       setSelectedSubmission(null);

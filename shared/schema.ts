@@ -379,21 +379,6 @@ export const sessionRecordingShares = pgTable("session_recording_shares", {
   index("idx_session_recording_shares_student").on(table.studentId),
 ]);
 
-// Module completion requests
-export const moduleCompletionRequests = pgTable("module_completion_requests", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  moduleId: varchar("module_id").notNull().references(() => modules.id, { onDelete: 'cascade' }),
-  studentId: varchar("student_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
-  trainerId: varchar("trainer_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
-  message: text("message"),
-  status: varchar("status", { enum: ['pending', 'completed', 'dismissed'] }).notNull().default('pending'),
-  requestedAt: timestamp("requested_at").defaultNow().notNull(),
-  respondedAt: timestamp("responded_at"),
-}, (table) => [
-  index("idx_module_completion_requests_student").on(table.studentId),
-  index("idx_module_completion_requests_status").on(table.status),
-]);
-
 // Notifications
 export const notifications = pgTable("notifications", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -407,6 +392,21 @@ export const notifications = pgTable("notifications", {
 }, (table) => [
   index("idx_notifications_user").on(table.userId),
   index("idx_notifications_unread").on(table.userId, table.isRead),
+]);
+
+// Module completion requests
+export const moduleCompletionRequests = pgTable("module_completion_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  moduleId: varchar("module_id").notNull().references(() => modules.id, { onDelete: 'cascade' }),
+  studentId: varchar("student_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  trainerId: varchar("trainer_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  message: text("message"),
+  status: varchar("status", { length: 20 }).notNull().default('pending'),
+  requestedAt: timestamp("requested_at").defaultNow().notNull(),
+  respondedAt: timestamp("responded_at"),
+}, (table) => [
+  index("idx_module_completion_requests_student").on(table.studentId),
+  index("idx_module_completion_requests_status").on(table.status),
 ]);
 
 // Relations
@@ -688,6 +688,13 @@ export const sessionRecordingSharesRelations = relations(sessionRecordingShares,
   }),
 }));
 
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  user: one(users, {
+    fields: [notifications.userId],
+    references: [users.id],
+  }),
+}));
+
 export const moduleCompletionRequestsRelations = relations(moduleCompletionRequests, ({ one }) => ({
   module: one(modules, {
     fields: [moduleCompletionRequests.moduleId],
@@ -699,13 +706,6 @@ export const moduleCompletionRequestsRelations = relations(moduleCompletionReque
   }),
   trainer: one(users, {
     fields: [moduleCompletionRequests.trainerId],
-    references: [users.id],
-  }),
-}));
-
-export const notificationsRelations = relations(notifications, ({ one }) => ({
-  user: one(users, {
-    fields: [notifications.userId],
     references: [users.id],
   }),
 }));
@@ -789,11 +789,11 @@ export type SessionRecording = typeof sessionRecordings.$inferSelect;
 export type InsertSessionRecordingShare = typeof sessionRecordingShares.$inferInsert;
 export type SessionRecordingShare = typeof sessionRecordingShares.$inferSelect;
 
-export type InsertModuleCompletionRequest = typeof moduleCompletionRequests.$inferInsert;
-export type ModuleCompletionRequest = typeof moduleCompletionRequests.$inferSelect;
-
 export type InsertNotification = typeof notifications.$inferInsert;
 export type Notification = typeof notifications.$inferSelect;
+
+export type InsertModuleCompletionRequest = typeof moduleCompletionRequests.$inferInsert;
+export type ModuleCompletionRequest = typeof moduleCompletionRequests.$inferSelect;
 
 // Insert schemas for validation
 export const insertUserSchema = createInsertSchema(users).omit({
@@ -933,13 +933,13 @@ export const insertSessionRecordingShareSchema = createInsertSchema(sessionRecor
   sharedAt: true,
 });
 
+export const insertNotificationSchema = createInsertSchema(notifications).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertModuleCompletionRequestSchema = createInsertSchema(moduleCompletionRequests).omit({
   id: true,
   requestedAt: true,
   respondedAt: true,
-});
-
-export const insertNotificationSchema = createInsertSchema(notifications).omit({
-  id: true,
-  createdAt: true,
 });

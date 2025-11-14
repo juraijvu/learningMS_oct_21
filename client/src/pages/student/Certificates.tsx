@@ -40,8 +40,8 @@ export default function Certificates() {
   const fetchData = async () => {
     try {
       const [requestsRes, coursesRes] = await Promise.all([
-        apiRequest('/api/student/certificates'),
-        apiRequest('/api/student/courses'),
+        apiRequest('GET', '/api/student/certificates'),
+        apiRequest('GET', '/api/student/courses'),
       ]);
 
       setRequests(requestsRes);
@@ -55,7 +55,7 @@ export default function Certificates() {
 
   const checkCourseCompletion = async (courseId: string) => {
     try {
-      const status = await apiRequest(`/api/student/courses/${courseId}/completion`);
+      const status = await apiRequest('GET', `/api/student/courses/${courseId}/completion`);
       return status;
     } catch (error) {
       console.error('Error checking course completion:', error);
@@ -79,10 +79,7 @@ export default function Certificates() {
     if (!selectedCourse) return;
     
     try {
-      await apiRequest('/api/student/certificates', {
-        method: 'POST',
-        body: { courseId: selectedCourse.id },
-      });
+      await apiRequest('POST', '/api/student/certificates', { courseId: selectedCourse.id });
       setIsConfirmDialogOpen(false);
       setSelectedCourse(null);
       fetchData();

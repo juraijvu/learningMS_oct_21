@@ -45,9 +45,7 @@ export default function TrainerAssignments() {
 
   const deleteAssignmentMutation = useMutation({
     mutationFn: async (assignmentId: string) => {
-      return await apiRequest(`/api/admin/trainer-assignments/${assignmentId}`, {
-        method: "DELETE"
-      });
+      return await apiRequest("DELETE", `/api/admin/trainer-assignments/${assignmentId}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/trainer-assignments"] });

@@ -84,7 +84,7 @@ export default function Posts() {
         imageUrl: postData.imageUrl || null,
         imageExpiresAt: postData.imageExpiresAt || null
       };
-      return await apiRequest("/api/posts", { method: "POST", body: payload });
+      return await apiRequest("POST", "/api/posts", payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
@@ -99,7 +99,7 @@ export default function Posts() {
 
   const createCommentMutation = useMutation({
     mutationFn: async ({ postId, content }: { postId: string; content: string }) => {
-      return await apiRequest(`/api/posts/${postId}/comments`, { method: "POST", body: { content } });
+      return await apiRequest("POST", `/api/posts/${postId}/comments`, { content });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
@@ -113,7 +113,7 @@ export default function Posts() {
 
   const toggleLikeMutation = useMutation({
     mutationFn: async (postId: string) => {
-      return await apiRequest(`/api/posts/${postId}/like`, { method: "POST", body: {} });
+      return await apiRequest("POST", `/api/posts/${postId}/like`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/posts"] });

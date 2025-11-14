@@ -39,22 +39,22 @@ export default function ManageCourses() {
 
   const { data: courses } = useQuery<Course[]>({
     queryKey: ["/api/courses"],
+    queryFn: () => apiRequest('GET', '/api/courses'),
   });
 
   const { data: trainers } = useQuery<User[]>({
     queryKey: ["/api/admin/trainers"],
+    queryFn: () => apiRequest('GET', '/api/admin/trainers'),
   });
 
   const { data: students } = useQuery<User[]>({
     queryKey: ["/api/admin/students"],
+    queryFn: () => apiRequest('GET', '/api/admin/students'),
   });
 
   const assignTrainerMutation = useMutation({
     mutationFn: async (data: { trainerId: string; courseId: string }) => {
-      return await apiRequest("/api/admin/assign-course-to-trainer", {
-        method: "POST",
-        body: data,
-      });
+      return await apiRequest("POST", "/api/admin/assign-course-to-trainer", data);
     },
     onSuccess: (data) => {
       toast({
@@ -79,10 +79,7 @@ export default function ManageCourses() {
 
   const enrollStudentMutation = useMutation({
     mutationFn: async (data: { studentId: string; courseId: string }) => {
-      return await apiRequest("/api/admin/enroll-student", {
-        method: "POST",
-        body: data,
-      });
+      return await apiRequest("POST", "/api/admin/enroll-student", data);
     },
     onSuccess: (data) => {
       toast({

@@ -48,7 +48,7 @@ export default function Projects() {
 
   const fetchAssignments = async () => {
     try {
-      const response = await apiRequest('/api/student/projects');
+      const response = await apiRequest('GET', '/api/student/projects');
       setAssignments(response);
     } catch (error) {
       console.error('Error fetching assignments:', error);
@@ -432,7 +432,10 @@ export default function Projects() {
 
               <div className="space-y-3">
                 <Label htmlFor="file" className="text-base font-semibold">Select Project File</Label>
-                <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center hover:border-blue-300 transition-colors">
+                <div 
+                  className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center hover:border-blue-300 transition-colors cursor-pointer"
+                  onClick={() => document.getElementById('file')?.click()}
+                >
                   <Input
                     id="file"
                     type="file"

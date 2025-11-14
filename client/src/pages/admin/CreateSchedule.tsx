@@ -78,31 +78,25 @@ export default function AdminCreateSchedule() {
     mutationFn: async (data: z.infer<typeof scheduleSchema>) => {
       if (isEditing) {
         // Update existing schedule
-        return await apiRequest(`/api/admin/schedules/${scheduleId}`, {
-          method: "PUT",
-          body: {
-            courseId: data.courseId,
-            studentId: data.studentId,
-            trainerId: data.trainerId,
-            weekStart: data.weekStart,
-            dayOfWeek: data.daysOfWeek[0], // Take first selected day for single schedule
-            timeSlot: data.timeSlot,
-          },
+        return await apiRequest("PUT", `/api/admin/schedules/${scheduleId}`, {
+          courseId: data.courseId,
+          studentId: data.studentId,
+          trainerId: data.trainerId,
+          weekStart: data.weekStart,
+          dayOfWeek: data.daysOfWeek[0], // Take first selected day for single schedule
+          timeSlot: data.timeSlot,
         });
       } else {
         // Create multiple schedule entries for each selected day
         const schedules = await Promise.all(
           data.daysOfWeek.map(async (dayOfWeek) => {
-            return await apiRequest("/api/admin/schedules", {
-              method: "POST",
-              body: {
-                courseId: data.courseId,
-                studentId: data.studentId,
-                trainerId: data.trainerId,
-                weekStart: data.weekStart,
-                dayOfWeek,
-                timeSlot: data.timeSlot,
-              },
+            return await apiRequest("POST", "/api/admin/schedules", {
+              courseId: data.courseId,
+              studentId: data.studentId,
+              trainerId: data.trainerId,
+              weekStart: data.weekStart,
+              dayOfWeek,
+              timeSlot: data.timeSlot,
             });
           })
         );

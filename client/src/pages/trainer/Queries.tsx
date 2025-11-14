@@ -33,10 +33,7 @@ export default function TrainerQueries() {
 
   const respondMutation = useMutation({
     mutationFn: async ({ queryId, response }: { queryId: string; response: string }) => {
-      return await apiRequest(`/api/trainer/queries/${queryId}/respond`, {
-        method: "PATCH",
-        body: { response },
-      });
+      return await apiRequest("PATCH", `/api/trainer/queries/${queryId}/respond`, { response });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/trainer/queries"] });

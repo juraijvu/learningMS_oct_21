@@ -41,7 +41,7 @@ export default function AdminSchedules() {
   
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      return await apiRequest(`/api/admin/schedules/${id}/status`, { method: "PATCH", body: { status } });
+      return await apiRequest("PATCH", `/api/admin/schedules/${id}/status`, { status });
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/schedules"] });

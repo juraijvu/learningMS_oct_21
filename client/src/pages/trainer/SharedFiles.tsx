@@ -89,10 +89,7 @@ export default function SharedFiles() {
 
   const assignMutation = useMutation({
     mutationFn: async ({ fileId, trainerIds }: { fileId: string; trainerIds: string[] }) => {
-      return await apiRequest(`/api/trainer/shared-files/${fileId}/assign`, { 
-        method: "POST", 
-        body: { trainerIds } 
-      });
+      return await apiRequest("POST", `/api/trainer/shared-files/${fileId}/assign`, { trainerIds });
     },
     onSuccess: () => {
       toast({ title: "Success", description: "File assigned successfully" });
@@ -107,7 +104,7 @@ export default function SharedFiles() {
 
   const deleteMutation = useMutation({
     mutationFn: async (fileId: string) => {
-      return await apiRequest(`/api/trainer/shared-files/${fileId}`, { method: "DELETE" });
+      return await apiRequest("DELETE", `/api/trainer/shared-files/${fileId}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/trainer/shared-files/uploaded"] });

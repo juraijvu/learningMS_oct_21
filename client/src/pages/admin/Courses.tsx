@@ -40,7 +40,7 @@ export default function CoursesManagement() {
 
   const createCourseMutation = useMutation({
     mutationFn: async (courseData: typeof newCourse) => {
-      return await apiRequest("/api/admin/courses", { method: "POST", body: courseData });
+      return await apiRequest("POST", "/api/admin/courses", courseData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/courses"] });
@@ -57,7 +57,7 @@ export default function CoursesManagement() {
 
   const updateCourseMutation = useMutation({
     mutationFn: async ({ id, courseData }: { id: string; courseData: typeof newCourse }) => {
-      return await apiRequest(`/api/admin/courses/${id}`, { method: "PUT", body: courseData });
+      return await apiRequest("PUT", `/api/admin/courses/${id}`, courseData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/courses"] });
@@ -74,7 +74,7 @@ export default function CoursesManagement() {
 
   const deleteCourseMutation = useMutation({
     mutationFn: async (id: string) => {
-      return await apiRequest(`/api/admin/courses/${id}`, { method: "DELETE" });
+      return await apiRequest("DELETE", `/api/admin/courses/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/courses"] });
@@ -94,7 +94,7 @@ export default function CoursesManagement() {
 
     setIsFetchingMetadata(true);
     try {
-      const response = await apiRequest("/api/admin/courses/fetch-metadata", { method: "POST", body: { url: coursePageUrl } }) as any;
+      const response = await apiRequest("POST", "/api/admin/courses/fetch-metadata", { url: coursePageUrl }) as any;
       
       setNewCourse({
         ...newCourse,

@@ -1005,11 +1005,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Student: Upload task file
+  app.post("/api/student/tasks/upload-file", isAuthenticated, requireRole(['student']), upload.single('file'), async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      const fileUrl = `/uploads/${req.file.filename}`;
+      console.log(`[File Upload] Student uploaded file: ${req.file.originalname} -> ${fileUrl}`);
+      
+      res.json({ 
+        success: true,
+        fileUrl,
+        fileName: req.file.originalname
+      });
+    } catch (error) {
+      if (req.file) {
+        await fs.unlink(req.file.path).catch(() => {});
+      }
+      console.error("Error uploading student task file:", error);
+      res.status(500).json({ success: false, message: "Failed to upload file" });
+    }
+  });
+
   // Student: Submit task
   app.post("/api/student/tasks/:taskId/submit", isAuthenticated, requireRole(['student']), async (req, res) => {
     try {
       const { taskId } = req.params;
       const { fileUrl } = req.body;
+      const studentId = req.currentUser?.id || req.session?.userId;
+      
+      console.log(`[Task Submission] Student ${studentId} submitting task ${taskId} with file ${fileUrl}`);
+      
+      // Verify the task exists and belongs to the student
+      const [existingTask] = await db.select().from(tasks).where(eq(tasks.id, taskId));
+      if (!existingTask) {
+        return res.status(404).json({ message: "Task not found" });
+      }
+      
+      if (existingTask.studentId !== studentId) {
+        return res.status(403).json({ message: "Access denied - Task does not belong to you" });
+      }
+      
+      console.log(`[Task Submission] Current task status: ${existingTask.status}`);
       
       const updatedTask = await storage.updateTask(taskId, {
         fileUrl,
@@ -1017,10 +1056,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         submittedAt: new Date(),
       });
       
+      console.log(`[Task Submission] Task updated successfully. New status: ${updatedTask.status}`);
+      
       // Log activity
-      const studentId = req.currentUser?.id || req.session?.userId;
       if (studentId) {
         await ActivityLogger.logTaskSubmitted(studentId, taskId, updatedTask.title, req);
+      }
+      
+      // Create notification for trainer
+      if (updatedTask.assignedBy) {
+        await createNotification(
+          updatedTask.assignedBy,
+          'task_submitted',
+          'Task Submitted',
+          `A student has submitted the task: ${updatedTask.title}`,
+          { taskId: updatedTask.id, studentId }
+        );
       }
 
       res.json(updatedTask);
@@ -1092,6 +1143,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Log activity
       await ActivityLogger.logQueryCreated(studentId, query.id, req);
       
+      // Get module and course info for notification
+      const [module] = await db.select().from(modules).where(eq(modules.id, queryData.moduleId));
+      const [course] = module ? await db.select().from(courses).where(eq(courses.id, module.courseId)) : [null];
+      
+      // Find trainers for this course and notify them
+      if (course) {
+        const trainers = await db.select({ trainerId: trainerAssignments.trainerId })
+          .from(trainerAssignments)
+          .where(eq(trainerAssignments.courseId, course.id));
+        
+        for (const trainer of trainers) {
+          await createNotification(
+            trainer.trainerId,
+            'query_received',
+            'New Student Query',
+            `A student has asked a question about ${module?.title || 'a module'} in ${course.title}`,
+            { queryId: query.id, moduleId: module?.id, courseId: course.id }
+          );
+        }
+      }
+      
       res.json(query);
     } catch (error) {
       console.error("Error creating query:", error);
@@ -1148,6 +1220,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (trainerId) {
         await ActivityLogger.logQueryResolved(trainerId, updatedQuery.studentId, id, req);
       }
+      
+      // Create notification for student
+      await createNotification(
+        updatedQuery.studentId,
+        'query_answered',
+        'Query Answered',
+        'Your question has been answered by the trainer',
+        { queryId: updatedQuery.id }
+      );
       
       res.json(updatedQuery);
     } catch (error) {
@@ -1341,6 +1422,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         timeSlot,
         req
       );
+      
+      // Create notifications
+      if (studentId) {
+        await createNotification(
+          studentId,
+          'schedule_assigned',
+          'New Schedule Assigned',
+          `You have been scheduled for ${course?.title || 'a course'} at ${timeSlot}`,
+          { scheduleId: schedule.id, courseId, timeSlot }
+        );
+      }
+      
+      if (trainerId) {
+        await createNotification(
+          trainerId,
+          'schedule_assigned',
+          'New Schedule Assigned',
+          `You have been assigned to teach ${course?.title || 'a course'} at ${timeSlot}`,
+          { scheduleId: schedule.id, courseId, timeSlot }
+        );
+      }
       
       res.json(schedule);
     } catch (error) {
@@ -1743,6 +1845,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Log activity
       await ActivityLogger.logTaskCreated(trainerId, task.studentId, task.id, task.title, req);
+      
+      // Create notification for student
+      await createNotification(
+        task.studentId,
+        'task_assigned',
+        'New Task Assigned',
+        `You have been assigned a new task: ${task.title}`,
+        { taskId: task.id, moduleId: task.moduleId }
+      );
       
       res.json(task);
     } catch (error) {
@@ -2199,6 +2310,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await Promise.all(
         studentIds.map(studentId => 
           ActivityLogger.logMaterialAssigned(req.currentUser.id, studentId, materialId, material.title, req)
+        )
+      );
+      
+      // Create notifications for each student
+      await Promise.all(
+        studentIds.map(studentId => 
+          createNotification(
+            studentId,
+            'material_assigned',
+            'New Material Assigned',
+            `New ${material.type} material has been assigned: ${material.title}`,
+            { materialId, courseId: material.courseId }
+          )
         )
       );
 
@@ -3095,6 +3219,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         id,
         course?.title || 'Unknown Course',
         req
+      );
+      
+      // Create notification for student
+      await createNotification(
+        request.studentId,
+        'enrollment_approved',
+        'Enrollment Approved',
+        `Your enrollment request for ${course?.title || 'the course'} has been approved`,
+        { courseId: request.courseId }
       );
       
       res.json({ 
@@ -4424,6 +4557,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       await storage.shareRecordingWithStudents(id, studentIds);
+      
+      // Create notifications for each student
+      await Promise.all(
+        studentIds.map(studentId => 
+          createNotification(
+            studentId,
+            'session_shared',
+            'Session Recording Shared',
+            `A new session recording has been shared with you: ${recording.title}`,
+            { recordingId: id }
+          )
+        )
+      );
+      
       res.json({ message: "Recording shared successfully" });
     } catch (error) {
       console.error("Error sharing recording:", error);
@@ -4633,6 +4780,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ============ NOTIFICATION ROUTES ============
+  
+  // Get user notifications
+  app.get("/api/notifications", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const notifications = await storage.getNotificationsByUser(userId);
+      res.json(notifications);
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
+      res.status(500).json({ message: "Failed to fetch notifications" });
+    }
+  });
+  
+  // Get unread notification count
+  app.get("/api/notifications/unread-count", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const count = await storage.getUnreadNotificationCount(userId);
+      res.json({ count });
+    } catch (error) {
+      console.error("Error fetching unread count:", error);
+      res.status(500).json({ message: "Failed to fetch unread count" });
+    }
+  });
+  
+  // Mark notification as read
+  app.patch("/api/notifications/:id/read", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      await storage.markNotificationAsRead(id);
+      res.json({ message: "Notification marked as read" });
+    } catch (error) {
+      console.error("Error marking notification as read:", error);
+      res.status(500).json({ message: "Failed to mark notification as read" });
+    }
+  });
+  
+  // Mark all notifications as read
+  app.patch("/api/notifications/read-all", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      await storage.markAllNotificationsAsRead(userId);
+      res.json({ message: "All notifications marked as read" });
+    } catch (error) {
+      console.error("Error marking all notifications as read:", error);
+      res.status(500).json({ message: "Failed to mark all notifications as read" });
+    }
+  });
+
   // Download certificate
   app.get("/api/certificates/download/:requestId", isAuthenticated, async (req: any, res) => {
     try {
@@ -4669,6 +4878,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to download certificate" });
     }
   });
+
+  // Helper function to create notifications
+  const createNotification = async (userId: string, type: string, title: string, message: string, data?: any) => {
+    try {
+      await storage.createNotification({
+        userId,
+        type,
+        title,
+        message,
+        data,
+        isRead: false,
+      });
+    } catch (error) {
+      console.error('Error creating notification:', error);
+    }
+  };
 
   const httpServer = createServer(app);
   return httpServer;

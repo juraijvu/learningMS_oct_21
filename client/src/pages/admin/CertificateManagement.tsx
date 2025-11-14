@@ -37,7 +37,7 @@ export default function CertificateManagement() {
 
   const fetchRequests = async () => {
     try {
-      const response = await apiRequest('/api/admin/certificates');
+      const response = await apiRequest('GET', '/api/admin/certificates');
       setRequests(response);
     } catch (error) {
       console.error('Error fetching certificate requests:', error);
@@ -83,9 +83,7 @@ export default function CertificateManagement() {
 
   const handleRejectRequest = async (requestId: string) => {
     try {
-      await apiRequest(`/api/admin/certificates/${requestId}/reject`, {
-        method: 'PATCH',
-      });
+      await apiRequest('PATCH', `/api/admin/certificates/${requestId}/reject`);
       fetchRequests();
     } catch (error) {
       console.error('Error rejecting certificate request:', error);

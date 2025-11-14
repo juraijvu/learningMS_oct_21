@@ -45,9 +45,7 @@ export default function StudentEnrollments() {
 
   const deleteEnrollmentMutation = useMutation({
     mutationFn: async (enrollmentId: string) => {
-      return await apiRequest(`/api/admin/enrollments/${enrollmentId}`, {
-        method: "DELETE"
-      });
+      return await apiRequest("DELETE", `/api/admin/enrollments/${enrollmentId}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/student-enrollments"] });
