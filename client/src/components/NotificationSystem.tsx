@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useEffect, useState } from "react";
+import { useLocation } from "wouter";
 
 interface Notification {
   id: string;
@@ -20,6 +21,7 @@ export function NotificationSystem() {
   const [isOpen, setIsOpen] = useState(false);
   const [permission, setPermission] = useState<NotificationPermission>('default');
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
 
   const { data: notifications = [] } = useQuery<Notification[]>({
     queryKey: ["/api/notifications"],
@@ -104,10 +106,58 @@ export function NotificationSystem() {
         return '📚';
       case 'task_assigned':
         return '📝';
+      case 'project_assigned':
+        return '📋';
       case 'session_shared':
         return '🎥';
+      case 'schedule_assigned':
+        return '📅';
+      case 'query_received':
+      case 'query_answered':
+        return '❓';
+      case 'post_approved':
+        return '✅';
+      case 'material_assigned':
+        return '📁';
       default:
         return '🔔';
+    }
+  };
+
+  const getNotificationRoute = (notification: Notification) => {
+    const { type, data } = notification;
+    
+    switch (type) {
+      case 'task_assigned':
+        return '/tasks';
+      case 'project_assigned':
+        return '/projects';
+      case 'query_received':
+      case 'query_answered':
+        return '/queries';
+      case 'schedule_assigned':
+        return '/schedule';
+      case 'post_approved':
+        return '/posts';
+      case 'material_assigned':
+        return '/materials';
+      case 'module_completion_request':
+        return '/completion-requests';
+      case 'session_shared':
+        return '/session-recordings';
+      default:
+        return null;
+    }
+  };
+
+  const handleNotificationClick = (notification: Notification) => {
+    const route = getNotificationRoute(notification);
+    if (route) {
+      setLocation(route);
+      setIsOpen(false);
+      if (!notification.isRead) {
+        markAsReadMutation.mutate(notification.id);
+      }
     }
   };
 
@@ -154,7 +204,8 @@ export function NotificationSystem() {
               {notifications.map((notification) => (
                 <Card 
                   key={notification.id} 
-                  className={`border-0 rounded-none ${!notification.isRead ? 'bg-blue-50' : 'bg-white'}`}
+                  className={`border-0 rounded-none cursor-pointer hover:bg-gray-50 ${!notification.isRead ? 'bg-blue-50' : 'bg-white'}`}
+                  onClick={() => handleNotificationClick(notification)}
                 >
                   <CardContent className="p-3">
                     <div className="flex items-start gap-3">
@@ -167,7 +218,10 @@ export function NotificationSystem() {
                               variant="ghost"
                               size="sm"
                               className="h-6 w-6 p-0 ml-2"
-                              onClick={() => markAsReadMutation.mutate(notification.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                markAsReadMutation.mutate(notification.id);
+                              }}
                             >
                               <Check className="h-3 w-3" />
                             </Button>

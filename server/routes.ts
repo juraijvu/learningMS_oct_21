@@ -1159,7 +1159,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             'query_received',
             'New Student Query',
             `A student has asked a question about ${module?.title || 'a module'} in ${course.title}`,
-            { queryId: query.id, moduleId: module?.id, courseId: course.id }
+            { queryId: query.id, moduleId: module?.id, courseId: course.id, type: 'query' }
           );
         }
       }
@@ -1227,7 +1227,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'query_answered',
         'Query Answered',
         'Your question has been answered by the trainer',
-        { queryId: updatedQuery.id }
+        { queryId: updatedQuery.id, type: 'query' }
       );
       
       res.json(updatedQuery);
@@ -1430,7 +1430,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           'schedule_assigned',
           'New Schedule Assigned',
           `You have been scheduled for ${course?.title || 'a course'} at ${timeSlot}`,
-          { scheduleId: schedule.id, courseId, timeSlot }
+          { scheduleId: schedule.id, courseId, timeSlot, type: 'student_schedule' }
         );
       }
       
@@ -1440,7 +1440,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           'schedule_assigned',
           'New Schedule Assigned',
           `You have been assigned to teach ${course?.title || 'a course'} at ${timeSlot}`,
-          { scheduleId: schedule.id, courseId, timeSlot }
+          { scheduleId: schedule.id, courseId, timeSlot, type: 'trainer_schedule' }
         );
       }
       
@@ -1852,7 +1852,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'task_assigned',
         'New Task Assigned',
         `You have been assigned a new task: ${task.title}`,
-        { taskId: task.id, moduleId: task.moduleId }
+        { taskId: task.id, moduleId: task.moduleId, type: 'task' }
       );
       
       res.json(task);
@@ -2321,7 +2321,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             'material_assigned',
             'New Material Assigned',
             `New ${material.type} material has been assigned: ${material.title}`,
-            { materialId, courseId: material.courseId }
+            { materialId, courseId: material.courseId, type: 'material' }
           )
         )
       );
@@ -3480,6 +3480,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Log activity
       await ActivityLogger.logPostApproved(approverId, approvedPost.authorId, id, req);
       
+      // Create notification for post author
+      await createNotification(
+        approvedPost.authorId,
+        'post_approved',
+        'Post Approved',
+        'Your post has been approved and is now visible to everyone',
+        { postId: approvedPost.id, type: 'post' }
+      );
+      
       res.json(approvedPost);
     } catch (error) {
       console.error("Error approving post:", error);
@@ -4007,6 +4016,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       
       const assignment = await storage.createProjectAssignment(assignmentData);
+      
+      // Create notification for student
+      await createNotification(
+        assignment.studentId,
+        'project_assigned',
+        'New Project Assigned',
+        `You have been assigned a new ${assignment.type} project: ${assignment.title}`,
+        { projectId: assignment.id, courseId: assignment.courseId, type: 'project' }
+      );
+      
       res.json(assignment);
     } catch (error) {
       console.error("Error creating project assignment:", error);
@@ -4879,17 +4898,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Helper function to create notifications
+  // Helper function to create notifications (prevents duplicates)
   const createNotification = async (userId: string, type: string, title: string, message: string, data?: any) => {
     try {
-      await storage.createNotification({
-        userId,
-        type,
-        title,
-        message,
-        data,
-        isRead: false,
-      });
+      // For post approval notifications, always create them since each post is unique
+      if (type === 'post_approved') {
+        await storage.createNotification({
+          userId,
+          type,
+          title,
+          message,
+          data,
+          isRead: false,
+        });
+        return;
+      }
+      
+      // Check for existing similar notification in last 24 hours for other types
+      const existing = await db.select()
+        .from(notifications)
+        .where(and(
+          eq(notifications.userId, userId),
+          eq(notifications.type, type),
+          eq(notifications.title, title),
+          sql`${notifications.createdAt} > datetime('now', '-1 day')`
+        ));
+      
+      // Only create if no similar notification exists
+      if (existing.length === 0) {
+        await storage.createNotification({
+          userId,
+          type,
+          title,
+          message,
+          data,
+          isRead: false,
+        });
+      }
     } catch (error) {
       console.error('Error creating notification:', error);
     }
