@@ -328,6 +328,10 @@ function CourseMaterials({ courseId }: { courseId: string }) {
     window.open(`/api/class-materials/download/${material.id}`, '_blank');
   };
 
+  const handleView = async (material: ClassMaterial) => {
+    window.open(`/api/class-materials/view/${material.id}`, '_blank');
+  };
+
   // Edit download permission mutation
   const editMutation = useMutation({
     mutationFn: async ({ id, allowDownload }: { id: string; allowDownload: boolean }) => {
@@ -415,6 +419,15 @@ function CourseMaterials({ courseId }: { courseId: string }) {
                 )}
               </div>
               <div className="flex gap-1">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => handleView(material)}
+                  className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700"
+                  data-testid={`button-view-${material.id}`}
+                >
+                  <Eye className="h-3 w-3" />
+                </Button>
                 <Button
                   size="sm"
                   variant="ghost"

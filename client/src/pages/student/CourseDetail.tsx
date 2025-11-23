@@ -3,13 +3,14 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, BookOpen, FileText, CheckCircle, Download, Video, FileIcon } from "lucide-react";
+import { ArrowLeft, BookOpen, FileText, CheckCircle, Download, Video, FileIcon, Eye } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { MediaViewer } from "@/components/MediaViewer";
 
 interface Module {
   id: string;
@@ -63,6 +64,7 @@ export default function StudentCourseDetail() {
   const { toast } = useToast();
   const [confirmDialog, setConfirmDialog] = useState<{ open: boolean; moduleId: string; moduleTitle: string }>({ open: false, moduleId: '', moduleTitle: '' });
   const [confirmed, setConfirmed] = useState(false);
+  const [mediaViewer, setMediaViewer] = useState<{ open: boolean; material: ClassMaterial | null }>({ open: false, material: null });
 
   const { data: course, isLoading: loadingCourse } = useQuery<Course>({
     queryKey: [`/api/courses/${courseId}`],
@@ -149,6 +151,17 @@ export default function StudentCourseDetail() {
     return days > 0 ? days : 0;
   };
 
+  const handleView = (material: ClassMaterial) => {
+    setMediaViewer({ open: true, material });
+  };
+
+  const getFileType = (fileName: string): 'video' | 'pdf' | 'document' => {
+    const ext = fileName.toLowerCase().split('.').pop();
+    if (['mp4', 'webm', 'ogg', 'avi', 'mov'].includes(ext || '')) return 'video';
+    if (ext === 'pdf') return 'pdf';
+    return 'document';
+  };
+
   if (loadingCourse || loadingModules) {
     return (
       <div className="p-6 space-y-6">
@@ -231,26 +244,37 @@ export default function StudentCourseDetail() {
                           </span>
                         </p>
                       </div>
-                      {material.allowDownload ? (
-                        <Button size="sm" variant="outline" asChild data-testid={`button-download-${material.id}`}>
-                          <a href={`/api/class-materials/download/${material.id}`} download>
-                            <Download className="h-4 w-4 mr-1" />
-                            Download
-                          </a>
-                        </Button>
-                      ) : (
+                      <div className="flex gap-2">
                         <Button 
                           size="sm" 
-                          variant="outline" 
-                          disabled 
-                          className="opacity-50"
-                          title="Download disabled by trainer"
-                          data-testid={`button-download-disabled-${material.id}`}
+                          variant="outline"
+                          onClick={() => handleView(material)}
+                          data-testid={`button-view-${material.id}`}
                         >
-                          <Download className="h-4 w-4 mr-1" />
-                          View Only
+                          <Eye className="h-4 w-4 mr-1" />
+                          View
                         </Button>
-                      )}
+                        {material.allowDownload ? (
+                          <Button size="sm" variant="outline" asChild data-testid={`button-download-${material.id}`}>
+                            <a href={`/api/class-materials/download/${material.id}`} download>
+                              <Download className="h-4 w-4 mr-1" />
+                              Download
+                            </a>
+                          </Button>
+                        ) : (
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            disabled 
+                            className="opacity-50"
+                            title="Download disabled by trainer"
+                            data-testid={`button-download-disabled-${material.id}`}
+                          >
+                            <Download className="h-4 w-4 mr-1" />
+                            Download
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -395,6 +419,18 @@ export default function StudentCourseDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Media Viewer */}
+      {mediaViewer.material && (
+        <MediaViewer
+          isOpen={mediaViewer.open}
+          onClose={() => setMediaViewer({ open: false, material: null })}
+          fileUrl={`/api/class-materials/view/${mediaViewer.material.id}`}
+          fileName={mediaViewer.material.fileName}
+          fileType={getFileType(mediaViewer.material.fileName)}
+          allowDownload={mediaViewer.material.allowDownload}
+        />
+      )}
     </div>
   );
 }
