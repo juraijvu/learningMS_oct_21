@@ -2263,6 +2263,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Trainer: Update class material download permission
+  app.patch("/api/class-materials/:id", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { allowDownload } = req.body;
+      
+      const material = await storage.getClassMaterialById(id);
+      
+      if (!material) {
+        return res.status(404).json({ message: "Material not found" });
+      }
+
+      // Check if the trainer is the owner
+      if (material.trainerId !== req.currentUser.id) {
+        return res.status(403).json({ message: "Forbidden - You can only edit your own materials" });
+      }
+
+      // Update in database
+      await db.update(classMaterials)
+        .set({ allowDownload: allowDownload })
+        .where(eq(classMaterials.id, id));
+
+      res.json({ message: "Download permission updated successfully" });
+    } catch (error) {
+      console.error("Error updating class material:", error);
+      res.status(500).json({ message: "Failed to update material" });
+    }
+  });
+
   // Trainer: Delete class material
   app.delete("/api/class-materials/:id", isAuthenticated, requireRole(['trainer']), async (req: any, res) => {
     try {

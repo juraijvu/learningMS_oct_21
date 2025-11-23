@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { BookOpen, Users, FileText, Upload, Video, FileIcon, Eye, UserPlus, Download, Trash2 } from "lucide-react";
+import { BookOpen, Users, FileText, Upload, Video, FileIcon, Eye, UserPlus, Download, Trash2, Settings } from "lucide-react";
 import { PageLayout } from "@/components/PageLayout";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -252,8 +252,10 @@ function CourseMaterials({ courseId }: { courseId: string }) {
 
   const { toast } = useToast();
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedMaterial, setSelectedMaterial] = useState<ClassMaterial | null>(null);
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
+  const [editAllowDownload, setEditAllowDownload] = useState(true);
 
   // Fetch students for assignment
   const { data: students } = useQuery<User[]>({
@@ -324,6 +326,38 @@ function CourseMaterials({ courseId }: { courseId: string }) {
 
   const handleDownload = async (material: ClassMaterial) => {
     window.open(`/api/class-materials/download/${material.id}`, '_blank');
+  };
+
+  // Edit download permission mutation
+  const editMutation = useMutation({
+    mutationFn: async ({ id, allowDownload }: { id: string; allowDownload: boolean }) => {
+      return apiRequest("PATCH", `/api/class-materials/${id}`, { allowDownload });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/class-materials/${courseId}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/trainer/materials"] });
+      toast({
+        title: "Success",
+        description: "Download permission updated successfully",
+      });
+      setEditDialogOpen(false);
+      setSelectedMaterial(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleEditDownload = () => {
+    if (!selectedMaterial) return;
+    editMutation.mutate({
+      id: selectedMaterial.id,
+      allowDownload: editAllowDownload,
+    });
   };
 
   if (isLoading) {
@@ -405,6 +439,19 @@ function CourseMaterials({ courseId }: { courseId: string }) {
                 <Button
                   size="sm"
                   variant="ghost"
+                  onClick={() => {
+                    setSelectedMaterial(material);
+                    setEditAllowDownload(material.allowDownload ?? true);
+                    setEditDialogOpen(true);
+                  }}
+                  className="h-8 w-8 p-0 text-orange-600 hover:text-orange-700"
+                  data-testid={`button-edit-${material.id}`}
+                >
+                  <Settings className="h-3 w-3" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
                   onClick={() => deleteMutation.mutate(material.id)}
                   disabled={deleteMutation.isPending}
                   className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
@@ -472,6 +519,47 @@ function CourseMaterials({ courseId }: { courseId: string }) {
               data-testid="button-submit-assign"
             >
               {assignMutation.isPending ? "Assigning..." : `Assign to ${selectedStudents.length} Student${selectedStudents.length !== 1 ? 's' : ''}`}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Download Permission Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Download Permission</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {selectedMaterial && (
+              <div className="p-3 bg-muted rounded-lg">
+                <p className="font-medium">{selectedMaterial.title}</p>
+                <p className="text-sm text-muted-foreground">{selectedMaterial.fileName}</p>
+              </div>
+            )}
+            
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="editAllowDownload"
+                checked={editAllowDownload}
+                onCheckedChange={(checked) => setEditAllowDownload(!!checked)}
+                data-testid="checkbox-edit-allow-download"
+              />
+              <Label htmlFor="editAllowDownload" className="text-sm font-medium">
+                Allow students to download this file
+              </Label>
+            </div>
+            <p className="text-xs text-muted-foreground ml-6">
+              If unchecked, students can only view/play the file but cannot download it
+            </p>
+
+            <Button
+              onClick={handleEditDownload}
+              disabled={editMutation.isPending}
+              className="w-full"
+              data-testid="button-submit-edit"
+            >
+              {editMutation.isPending ? "Updating..." : "Update Permission"}
             </Button>
           </div>
         </DialogContent>
