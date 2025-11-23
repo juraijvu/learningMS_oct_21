@@ -2152,8 +2152,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const allAssignedMaterials = await storage.getStudentMaterials(userId);
         materials = allAssignedMaterials.filter(material => material.courseId === courseId);
       } else {
-        // For trainers/admins, get all materials for the course
-        materials = await storage.getClassMaterialsByCourse(courseId);
+        // For trainers/admins, get all materials for the course with assignment information
+        const allMaterials = await storage.getClassMaterialsByCourse(courseId);
+        
+        // Add assignment information for each material
+        materials = await Promise.all(
+          allMaterials.map(async (material) => {
+            const assignments = await storage.getMaterialAssignmentsWithStudents(material.id);
+            return {
+              ...material,
+              assignedStudents: assignments,
+            };
+          })
+        );
       }
       
       // Ensure allowDownload property is included in response

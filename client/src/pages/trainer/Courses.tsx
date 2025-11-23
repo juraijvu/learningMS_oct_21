@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { BookOpen, Users, FileText, Upload, Video, FileIcon, Eye } from "lucide-react";
+import { BookOpen, Users, FileText, Upload, Video, FileIcon, Eye, UserPlus, Download, Trash2 } from "lucide-react";
 import { PageLayout } from "@/components/PageLayout";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -10,11 +10,14 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import type { User } from "@shared/schema";
 
 interface AssignedCourse {
   id: string;
@@ -32,8 +35,16 @@ interface ClassMaterial {
   description?: string;
   fileName: string;
   fileSize: number;
+  allowDownload: boolean;
   uploadedAt: string;
   expiresAt: string;
+  assignedStudents?: {
+    id: string;
+    studentId: string;
+    studentName: string;
+    studentEmail: string;
+    assignedAt: Date;
+  }[];
 }
 
 const uploadSchema = z.object({
@@ -41,6 +52,7 @@ const uploadSchema = z.object({
   title: z.string().min(1, "Title is required"),
   description: z.string().optional(),
   file: z.any().refine((files) => files?.length > 0, "File is required"),
+  allowDownload: z.boolean().optional().default(true),
 });
 
 type UploadFormValues = z.infer<typeof uploadSchema>;
@@ -55,6 +67,7 @@ function UploadMaterialDialog({ courseId }: { courseId: string }) {
       type: 'note',
       title: '',
       description: '',
+      allowDownload: true,
     },
   });
 
@@ -65,6 +78,7 @@ function UploadMaterialDialog({ courseId }: { courseId: string }) {
       formData.append('type', values.type);
       formData.append('title', values.title);
       if (values.description) formData.append('description', values.description);
+      formData.append('allowDownload', (values.allowDownload ?? true).toString());
       formData.append('file', values.file[0]);
 
       const res = await fetch('/api/class-materials', {
@@ -86,6 +100,7 @@ function UploadMaterialDialog({ courseId }: { courseId: string }) {
         description: "Material uploaded successfully. It will be available for 10 days.",
       });
       queryClient.invalidateQueries({ queryKey: [`/api/class-materials/${courseId}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/trainer/materials"] });
       form.reset();
       setOpen(false);
     },
@@ -185,7 +200,33 @@ function UploadMaterialDialog({ courseId }: { courseId: string }) {
                       data-testid="input-material-file"
                     />
                   </FormControl>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Max 400MB. Supported: Videos, PDFs, Word, PowerPoint, Text files
+                  </p>
                   <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="allowDownload"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                      data-testid="checkbox-allow-download"
+                    />
+                  </FormControl>
+                  <div className="space-y-1 leading-none">
+                    <FormLabel className="text-sm font-medium">
+                      Allow students to download this file
+                    </FormLabel>
+                    <p className="text-xs text-muted-foreground">
+                      If unchecked, students can only view/play the file but cannot download it
+                    </p>
+                  </div>
                 </FormItem>
               )}
             />
@@ -210,16 +251,25 @@ function CourseMaterials({ courseId }: { courseId: string }) {
   });
 
   const { toast } = useToast();
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const [selectedMaterial, setSelectedMaterial] = useState<ClassMaterial | null>(null);
+  const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
+
+  // Fetch students for assignment
+  const { data: students } = useQuery<User[]>({
+    queryKey: ["/api/trainer/students"],
+  });
 
   const deleteMutation = useMutation({
     mutationFn: (materialId: string) => 
-      apiRequest(`/api/class-materials/${materialId}`, { method: 'DELETE' }),
+      apiRequest("DELETE", `/api/class-materials/${materialId}`),
     onSuccess: () => {
       toast({
         title: "Success",
         description: "Material deleted successfully",
       });
       queryClient.invalidateQueries({ queryKey: [`/api/class-materials/${courseId}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/trainer/materials"] });
     },
     onError: () => {
       toast({
@@ -229,6 +279,52 @@ function CourseMaterials({ courseId }: { courseId: string }) {
       });
     },
   });
+
+  // Assign mutation
+  const assignMutation = useMutation({
+    mutationFn: async ({ materialId, studentIds }: { materialId: string; studentIds: string[] }) => {
+      return apiRequest("POST", `/api/class-materials/${materialId}/assign`, { studentIds });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/student/materials"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/class-materials/${courseId}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/trainer/materials"] });
+      toast({
+        title: "Success",
+        description: "Material assigned to students successfully",
+      });
+      setAssignDialogOpen(false);
+      setSelectedStudents([]);
+      setSelectedMaterial(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleAssign = () => {
+    if (!selectedMaterial || selectedStudents.length === 0) {
+      toast({
+        title: "Error",
+        description: "Please select at least one student",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    assignMutation.mutate({
+      materialId: selectedMaterial.id,
+      studentIds: selectedStudents,
+    });
+  };
+
+  const handleDownload = async (material: ClassMaterial) => {
+    window.open(`/api/class-materials/download/${material.id}`, '_blank');
+  };
 
   if (isLoading) {
     return <Skeleton className="h-20 w-full" />;
@@ -254,38 +350,133 @@ function CourseMaterials({ courseId }: { courseId: string }) {
   };
 
   return (
-    <div className="space-y-2">
-      {materials.map((material) => (
-        <div
-          key={material.id}
-          className="flex items-center gap-3 p-2 rounded border bg-muted/30"
-          data-testid={`material-${material.id}`}
-        >
-          <div className="flex-shrink-0">
-            {material.type === 'video' ? (
-              <Video className="h-4 w-4 text-muted-foreground" />
-            ) : (
-              <FileIcon className="h-4 w-4 text-muted-foreground" />
+    <>
+      <div className="space-y-2">
+        {materials.map((material) => {
+          const daysLeft = daysUntilExpiry(material.expiresAt);
+          const isExpiring = daysLeft <= 3;
+          
+          return (
+            <div
+              key={material.id}
+              className="flex items-center gap-3 p-3 rounded border bg-muted/30"
+              data-testid={`material-${material.id}`}
+            >
+              <div className="flex-shrink-0">
+                {material.type === 'video' ? (
+                  <Video className="h-4 w-4 text-blue-500" />
+                ) : (
+                  <FileIcon className="h-4 w-4 text-green-500" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{material.title}</p>
+                <p className={`text-xs ${isExpiring ? 'text-orange-600' : 'text-muted-foreground'}`}>
+                  {formatFileSize(material.fileSize)} • {daysLeft > 0 ? `Expires in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}` : 'Expired'}
+                </p>
+                {material.assignedStudents && material.assignedStudents.length > 0 && (
+                  <p className="text-xs text-purple-600 mt-1">
+                    Assigned to {material.assignedStudents.length} student{material.assignedStudents.length !== 1 ? 's' : ''}
+                  </p>
+                )}
+              </div>
+              <div className="flex gap-1">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => handleDownload(material)}
+                  className="h-8 w-8 p-0"
+                  data-testid={`button-download-${material.id}`}
+                >
+                  <Download className="h-3 w-3" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setSelectedMaterial(material);
+                    setAssignDialogOpen(true);
+                  }}
+                  className="h-8 w-8 p-0"
+                  data-testid={`button-assign-${material.id}`}
+                >
+                  <UserPlus className="h-3 w-3" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => deleteMutation.mutate(material.id)}
+                  disabled={deleteMutation.isPending}
+                  className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                  data-testid={`button-delete-material-${material.id}`}
+                >
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Assign Dialog */}
+      <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign Material to Students</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {selectedMaterial && (
+              <div className="p-3 bg-muted rounded-lg">
+                <p className="font-medium">{selectedMaterial.title}</p>
+                <p className="text-sm text-muted-foreground">{selectedMaterial.fileName}</p>
+              </div>
             )}
+            
+            <div className="space-y-2 max-h-[300px] overflow-y-auto">
+              <Label>Select Students:</Label>
+              {students && students.length > 0 ? (
+                students.map((student) => (
+                  <div key={student.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`student-${student.id}`}
+                      checked={selectedStudents.includes(student.id)}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setSelectedStudents([...selectedStudents, student.id]);
+                        } else {
+                          setSelectedStudents(selectedStudents.filter(id => id !== student.id));
+                        }
+                      }}
+                      data-testid={`checkbox-student-${student.id}`}
+                    />
+                    <label
+                      htmlFor={`student-${student.id}`}
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                      {student.username} {student.firstName && `(${student.firstName} ${student.lastName})`}
+                    </label>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-4 text-muted-foreground">
+                  <p>No students found in your assigned courses.</p>
+                  <p className="text-sm mt-1">Students must be enrolled in your courses to assign materials.</p>
+                </div>
+              )}
+            </div>
+
+            <Button
+              onClick={handleAssign}
+              disabled={assignMutation.isPending || selectedStudents.length === 0}
+              className="w-full"
+              data-testid="button-submit-assign"
+            >
+              {assignMutation.isPending ? "Assigning..." : `Assign to ${selectedStudents.length} Student${selectedStudents.length !== 1 ? 's' : ''}`}
+            </Button>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">{material.title}</p>
-            <p className="text-xs text-muted-foreground">
-              {formatFileSize(material.fileSize)} • Expires in {daysUntilExpiry(material.expiresAt)} days
-            </p>
-          </div>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => deleteMutation.mutate(material.id)}
-            disabled={deleteMutation.isPending}
-            data-testid={`button-delete-material-${material.id}`}
-          >
-            Delete
-          </Button>
-        </div>
-      ))}
-    </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
