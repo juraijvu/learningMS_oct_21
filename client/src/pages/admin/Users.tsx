@@ -7,18 +7,21 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { UserPlus, Search } from "lucide-react";
+import { UserPlus, Search, Mail, Edit, Trash2, MoreHorizontal, KeyRound } from "lucide-react";
 import { RoleBadge } from "@/components/RoleBadge";
 import { UserAvatar } from "@/components/UserAvatar";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import type { User } from "@shared/schema";
 
 export default function UsersManagement() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [newUser, setNewUser] = useState({ username: "", password: "", email: "", firstName: "", lastName: "", role: "student" });
+  const [editUser, setEditUser] = useState<User | null>(null);
   const { toast } = useToast();
 
   const { data: users, isLoading } = useQuery<User[]>({
@@ -43,6 +46,121 @@ export default function UsersManagement() {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     },
   });
+
+  const resendEmailMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      return await apiRequest("POST", `/api/admin/users/${userId}/resend-email`);
+    },
+    onSuccess: (data) => {
+      toast({ 
+        title: "Success", 
+        description: `Welcome email resent successfully. New password: ${data.temporaryPassword}`,
+        duration: 10000,
+      });
+      // Also show an alert with the password for easy copying
+      alert(`Welcome email resent successfully!\n\nNew temporary password: ${data.temporaryPassword}\n\nPlease share this password with the user.`);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const resetPasswordMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      return await apiRequest("POST", `/api/admin/users/${userId}/reset-password`);
+    },
+    onSuccess: (data) => {
+      toast({ 
+        title: "Password Reset Successfully", 
+        description: `New password generated and sent to ${data.email}`,
+        duration: 10000,
+      });
+      // Show detailed information in alert
+      alert(`Password Reset Successful!\n\nUser: ${data.username}\nEmail: ${data.email}\nNew Password: ${data.temporaryPassword}\n\nThe user will receive an email with login instructions and must change this password on first login.`);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const updateUserMutation = useMutation({
+    mutationFn: async ({ userId, userData }: { userId: string; userData: Partial<User> }) => {
+      return await apiRequest("PUT", `/api/admin/users/${userId}`, userData);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      toast({ 
+        title: "Success", 
+        description: "User updated successfully",
+      });
+      setIsEditDialogOpen(false);
+      setEditUser(null);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      return await apiRequest("DELETE", `/api/admin/users/${userId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      toast({ 
+        title: "Success", 
+        description: "User deleted successfully",
+      });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const handleResendEmail = (user: User) => {
+    if (!user.email) {
+      toast({ title: "Error", description: "User has no email address", variant: "destructive" });
+      return;
+    }
+    if (confirm(`Resend welcome email to ${user.email}? This will generate a new temporary password.`)) {
+      resendEmailMutation.mutate(user.id);
+    }
+  };
+
+  const handleResetPassword = (user: User) => {
+    if (!user.email) {
+      toast({ title: "Error", description: "User has no email address", variant: "destructive" });
+      return;
+    }
+    if (confirm(`Reset password for ${user.username} (${user.email})?\n\nThis will:\n- Generate a new temporary password\n- Send password reset email to the user\n- Force user to change password on next login\n\nContinue?`)) {
+      resetPasswordMutation.mutate(user.id);
+    }
+  };
+
+  const handleEditUser = (user: User) => {
+    setEditUser(user);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleDeleteUser = (user: User) => {
+    if (confirm(`Are you sure you want to delete user ${user.username}? This action cannot be undone.`)) {
+      deleteUserMutation.mutate(user.id);
+    }
+  };
+
+  const handleUpdateUser = () => {
+    if (!editUser) return;
+    updateUserMutation.mutate({
+      userId: editUser.id,
+      userData: {
+        username: editUser.username,
+        email: editUser.email,
+        firstName: editUser.firstName,
+        lastName: editUser.lastName,
+        role: editUser.role,
+      },
+    });
+  };
 
   const filteredUsers = users?.filter(user =>
     user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -161,6 +279,75 @@ export default function UsersManagement() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Edit User Dialog */}
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit User</DialogTitle>
+              <DialogDescription>Update user information and role.</DialogDescription>
+            </DialogHeader>
+            {editUser && (
+              <div className="space-y-4 pt-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-username">Username *</Label>
+                  <Input
+                    id="edit-username"
+                    value={editUser.username}
+                    onChange={(e) => setEditUser({ ...editUser, username: e.target.value })}
+                    placeholder="Enter username"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-email">Email</Label>
+                  <Input
+                    id="edit-email"
+                    type="email"
+                    value={editUser.email || ''}
+                    onChange={(e) => setEditUser({ ...editUser, email: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-firstName">First Name</Label>
+                  <Input
+                    id="edit-firstName"
+                    value={editUser.firstName || ''}
+                    onChange={(e) => setEditUser({ ...editUser, firstName: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-lastName">Last Name</Label>
+                  <Input
+                    id="edit-lastName"
+                    value={editUser.lastName || ''}
+                    onChange={(e) => setEditUser({ ...editUser, lastName: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-role">Role</Label>
+                  <Select value={editUser.role} onValueChange={(value) => setEditUser({ ...editUser, role: value as any })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="student">Student</SelectItem>
+                      <SelectItem value="trainer">Trainer</SelectItem>
+                      <SelectItem value="sales_consultant">Sales Consultant</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button 
+                  className="w-full" 
+                  onClick={handleUpdateUser}
+                  disabled={updateUserMutation.isPending}
+                >
+                  {updateUserMutation.isPending ? "Updating..." : "Update User"}
+                </Button>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
         </div>
 
         <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-xl rounded-2xl overflow-hidden">
@@ -191,12 +378,13 @@ export default function UsersManagement() {
                     <TableHead className="font-bold text-blue-900 py-4 px-6">Email</TableHead>
                     <TableHead className="font-bold text-blue-900 py-4 px-6">Role</TableHead>
                     <TableHead className="font-bold text-blue-900 py-4 px-6">Created</TableHead>
+                    <TableHead className="font-bold text-blue-900 py-4 px-6">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredUsers.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center py-12">
+                      <TableCell colSpan={5} className="text-center py-12">
                         <div className="flex flex-col items-center gap-3">
                           <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
                             <UserPlus className="h-8 w-8 text-blue-500" />
@@ -230,6 +418,47 @@ export default function UsersManagement() {
                           <p className="text-blue-600 font-medium">
                             {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
                           </p>
+                        </TableCell>
+                        <TableCell className="py-4 px-6">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" className="h-8 w-8 p-0">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              {user.email && (
+                                <DropdownMenuItem 
+                                  onClick={() => handleResetPassword(user)}
+                                  disabled={resetPasswordMutation.isPending}
+                                >
+                                  <KeyRound className="mr-2 h-4 w-4" />
+                                  Reset Password
+                                </DropdownMenuItem>
+                              )}
+                              {user.email && (
+                                <DropdownMenuItem 
+                                  onClick={() => handleResendEmail(user)}
+                                  disabled={resendEmailMutation.isPending}
+                                >
+                                  <Mail className="mr-2 h-4 w-4" />
+                                  Resend Welcome Email
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuItem onClick={() => handleEditUser(user)}>
+                                <Edit className="mr-2 h-4 w-4" />
+                                Edit User
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={() => handleDeleteUser(user)}
+                                className="text-red-600"
+                                disabled={deleteUserMutation.isPending}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete User
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </TableCell>
                       </TableRow>
                     ))

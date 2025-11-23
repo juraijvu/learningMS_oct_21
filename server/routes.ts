@@ -473,6 +473,200 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin: Resend welcome email with new password
+  app.post("/api/admin/users/:userId/resend-email", isAuthenticated, requireRole(['admin']), async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      if (!user.email) {
+        return res.status(400).json({ message: "User has no email address" });
+      }
+      
+      // Generate new temporary password (since original passwords are encrypted and cannot be retrieved)
+      const newTemporaryPassword = crypto.randomBytes(8).toString('hex');
+      const passwordHash = await hashPassword(newTemporaryPassword);
+      
+      // Update user with new password and reset mustChangePassword
+      await db.update(users)
+        .set({ 
+          passwordHash,
+          mustChangePassword: true,
+          updatedAt: new Date()
+        })
+        .where(eq(users.id, userId));
+      
+      // Send password reset email with new credentials
+      await emailService.sendPasswordResetEmail(
+        user.email,
+        user.firstName || '',
+        user.lastName || '',
+        user.username,
+        newTemporaryPassword,
+        user.role
+      );
+      
+      // Log activity
+      const adminId = req.currentUser?.id || req.session?.userId;
+      if (adminId) {
+        await ActivityLogger.logEmailResent(adminId, userId, user.username, req);
+      }
+      
+      res.json({ 
+        message: "New password generated and email sent successfully. User must change password on first login.",
+        temporaryPassword: newTemporaryPassword, // Return for admin reference
+        note: "A new temporary password has been generated since the original password is encrypted and cannot be retrieved."
+      });
+    } catch (error) {
+      console.error("Error resending welcome email:", error);
+      res.status(500).json({ message: "Failed to resend welcome email" });
+    }
+  });
+
+  // Admin: Reset user password and send email
+  app.post("/api/admin/users/:userId/reset-password", isAuthenticated, requireRole(['admin']), async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      if (!user.email) {
+        return res.status(400).json({ message: "User has no email address" });
+      }
+      
+      // Generate new temporary password
+      const newTemporaryPassword = crypto.randomBytes(8).toString('hex');
+      const passwordHash = await hashPassword(newTemporaryPassword);
+      
+      // Update user with new password and force password change
+      await db.update(users)
+        .set({ 
+          passwordHash,
+          mustChangePassword: true,
+          lastPasswordChange: new Date(),
+          updatedAt: new Date()
+        })
+        .where(eq(users.id, userId));
+      
+      // Send password reset email
+      await emailService.sendPasswordResetEmail(
+        user.email,
+        user.firstName || '',
+        user.lastName || '',
+        user.username,
+        newTemporaryPassword,
+        user.role
+      );
+      
+      // Log activity
+      const adminId = req.currentUser?.id || req.session?.userId;
+      if (adminId) {
+        await ActivityLogger.logPasswordReset(adminId, userId, user.username, req);
+      }
+      
+      res.json({ 
+        message: "Password reset successfully. User will receive an email with new login credentials.",
+        temporaryPassword: newTemporaryPassword,
+        username: user.username,
+        email: user.email
+      });
+    } catch (error) {
+      console.error("Error resetting user password:", error);
+      res.status(500).json({ message: "Failed to reset user password" });
+    }
+  });
+
+  // Admin: Update user
+  app.put("/api/admin/users/:userId", isAuthenticated, requireRole(['admin']), async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      const updateSchema = z.object({
+        username: z.string().optional(),
+        email: z.string().email().optional(),
+        firstName: z.string().optional(),
+        lastName: z.string().optional(),
+        role: z.enum(['student', 'trainer', 'sales_consultant', 'admin']).optional(),
+      });
+      
+      const updateData = updateSchema.parse(req.body);
+      
+      // Check if username already exists (if being updated)
+      if (updateData.username) {
+        const existingUser = await storage.getUserByUsername(updateData.username);
+        if (existingUser && existingUser.id !== userId) {
+          return res.status(400).json({ message: "Username already exists" });
+        }
+      }
+      
+      // Update user
+      await db.update(users)
+        .set({ 
+          ...updateData,
+          updatedAt: new Date()
+        })
+        .where(eq(users.id, userId));
+      
+      const updatedUser = await storage.getUser(userId);
+      if (!updatedUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Log activity
+      const adminId = req.currentUser?.id || req.session?.userId;
+      if (adminId) {
+        await ActivityLogger.logUserUpdated(adminId, userId, updatedUser.username, req);
+      }
+      
+      const { passwordHash, ...userWithoutPassword } = updatedUser;
+      res.json(userWithoutPassword);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid input", errors: error.errors });
+      }
+      console.error("Error updating user:", error);
+      res.status(500).json({ message: "Failed to update user" });
+    }
+  });
+
+  // Admin: Delete user
+  app.delete("/api/admin/users/:userId", isAuthenticated, requireRole(['admin']), async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Don't allow deleting the current admin
+      const currentUserId = req.currentUser?.id || req.session?.userId;
+      if (userId === currentUserId) {
+        return res.status(400).json({ message: "Cannot delete your own account" });
+      }
+      
+      // Delete user
+      await db.delete(users).where(eq(users.id, userId));
+      
+      // Log activity
+      const adminId = req.currentUser?.id || req.session?.userId;
+      if (adminId) {
+        await ActivityLogger.logUserDeleted(adminId, userId, user.username, req);
+      }
+      
+      res.json({ message: "User deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      res.status(500).json({ message: "Failed to delete user" });
+    }
+  });
+
   // Admin: Get all courses
   app.get("/api/admin/courses", isAuthenticated, requireRole(['admin', 'sales_consultant']), async (req, res) => {
     try {

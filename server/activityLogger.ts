@@ -494,4 +494,64 @@ export class ActivityLogger {
       details: { courseName, studentName, fileName },
     });
   }
+
+  static async logEmailResent(
+    adminId: string,
+    userId: string,
+    username: string,
+    req?: Request
+  ): Promise<void> {
+    await this.log(adminId, 'email_resent', {
+      req,
+      entityType: 'user',
+      entityId: userId,
+      targetUserId: userId,
+      details: { username },
+    });
+  }
+
+  static async logUserUpdated(
+    adminId: string,
+    userId: string,
+    username: string,
+    req?: Request
+  ): Promise<void> {
+    await this.log(adminId, 'user_updated', {
+      req,
+      entityType: 'user',
+      entityId: userId,
+      targetUserId: userId,
+      details: { username },
+    });
+  }
+
+  static async logUserDeleted(
+    adminId: string,
+    userId: string,
+    username: string,
+    req?: Request
+  ): Promise<void> {
+    await this.log(adminId, 'user_deleted', {
+      req,
+      entityType: 'user',
+      entityId: userId,
+      targetUserId: userId,
+      details: { username },
+    });
+  }
+
+  static async logPasswordReset(
+    adminId: string,
+    userId: string,
+    username: string,
+    req?: Request
+  ): Promise<void> {
+    await this.log(adminId, 'password_reset_by_admin', {
+      req,
+      entityType: 'user',
+      entityId: userId,
+      targetUserId: userId,
+      details: { username },
+    });
+  }
 }
