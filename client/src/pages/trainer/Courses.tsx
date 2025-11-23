@@ -17,6 +17,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { MediaViewer } from "@/components/MediaViewer";
 import type { User } from "@shared/schema";
 
 interface AssignedCourse {
@@ -256,6 +257,7 @@ function CourseMaterials({ courseId }: { courseId: string }) {
   const [selectedMaterial, setSelectedMaterial] = useState<ClassMaterial | null>(null);
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
   const [editAllowDownload, setEditAllowDownload] = useState(true);
+  const [mediaViewer, setMediaViewer] = useState<{ open: boolean; material: ClassMaterial | null }>({ open: false, material: null });
 
   // Fetch students for assignment
   const { data: students } = useQuery<User[]>({
@@ -329,7 +331,14 @@ function CourseMaterials({ courseId }: { courseId: string }) {
   };
 
   const handleView = async (material: ClassMaterial) => {
-    window.open(`/api/class-materials/view/${material.id}`, '_blank');
+    setMediaViewer({ open: true, material });
+  };
+
+  const getFileType = (fileName: string): 'video' | 'pdf' | 'document' => {
+    const ext = fileName.toLowerCase().split('.').pop();
+    if (['mp4', 'webm', 'ogg', 'avi', 'mov'].includes(ext || '')) return 'video';
+    if (ext === 'pdf') return 'pdf';
+    return 'document';
   };
 
   // Edit download permission mutation
@@ -577,6 +586,18 @@ function CourseMaterials({ courseId }: { courseId: string }) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Media Viewer */}
+      {mediaViewer.material && (
+        <MediaViewer
+          isOpen={mediaViewer.open}
+          onClose={() => setMediaViewer({ open: false, material: null })}
+          fileUrl={`/api/class-materials/view/${mediaViewer.material.id}`}
+          fileName={mediaViewer.material.fileName}
+          fileType={getFileType(mediaViewer.material.fileName)}
+          allowDownload={mediaViewer.material.allowDownload}
+        />
+      )}
     </>
   );
 }
